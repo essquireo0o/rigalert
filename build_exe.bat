@@ -1,17 +1,16 @@
 @echo off
-echo Building ING Watch EXE...
+echo Building RigAlert by ING Mining (single EXE)...
 cd /d "%~dp0"
-python -m PyInstaller --onedir --windowed --name "ING Watch" --clean --noconfirm --add-data "src;src" main.py
+python -m PyInstaller RigAlert.spec --clean --noconfirm
 if errorlevel 1 (
     echo BUILD FAILED
     pause
     exit /b 1
 )
 echo.
-echo Build complete! EXE is at: dist\ING Watch\ING Watch.exe
+echo Build complete! EXE is at: dist\RigAlert.exe
 echo.
 echo Copying to Desktop...
-if exist "%USERPROFILE%\Desktop\ING Watch v2" rmdir /s /q "%USERPROFILE%\Desktop\ING Watch v2"
-xcopy /E /I /Q "dist\ING Watch" "%USERPROFILE%\Desktop\ING Watch v2"
-echo Done! Run from Desktop\ING Watch v2\ING Watch.exe
+copy /Y "dist\RigAlert.exe" "%USERPROFILE%\Desktop\RigAlert.exe"
+echo Done! Run RigAlert.exe from your Desktop.
 pause
