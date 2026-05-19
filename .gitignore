@@ -1,0 +1,28 @@
+# Compiled Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Compiled executable
+*.exe
+
+# Diagnostic/dev scripts
+diag*.py
+generate_icon.py
+
+# IDE / editor
+*.code-workspace
+.vscode/
+.idea/
+
+# Config files with credentials (saved on user's Desktop at runtime)
+ing_miner_watch_config.json
+
+# OS
+Thumbs.db
+.DS_Store

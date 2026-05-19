@@ -1,0 +1,14 @@
+ING Miner Watch Freeware
+
+Local ASIC monitoring utility for Antminer systems.
+
+Features:
+- Hashrate alerts
+- Offline miner alerts
+- Temperature monitoring
+- Fast network scanning
+
+Windows may display a SmartScreen warning because this is independent freeware and not code signed.
+
+Download only from:
+https://ingmining.com
