@@ -150,6 +150,54 @@ class SettingsPage(QWidget):
 
         layout.addWidget(gmail_box)
 
+        # ── Telegram Notifications ─────────────────────────────────
+        tg_box = QGroupBox("Telegram Notifications  (real-time alerts)")
+        tf = QVBoxLayout(tg_box)
+        tf.setSpacing(10)
+
+        tg_instructions = QLabel(
+            "How to set up Telegram:\n"
+            "  1. Message @BotFather on Telegram → /newbot → get your bot token\n"
+            "  2. Start a chat with your new bot, then open:\n"
+            "     https://api.telegram.org/bot<TOKEN>/getUpdates\n"
+            "  3. Copy the 'id' number from 'chat' — that's your Chat ID"
+        )
+        tg_instructions.setWordWrap(True)
+        tg_instructions.setStyleSheet("color:#8b949e;font-size:12px;line-height:1.6;background:transparent;")
+        tf.addWidget(tg_instructions)
+
+        tg_form = QFormLayout()
+        tg_form.setSpacing(10)
+        tg_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self._tg_enabled = QCheckBox("Enable Telegram alerts")
+        self._tg_enabled.setStyleSheet("color:#e6edf3;")
+        tg_form.addRow("", self._tg_enabled)
+
+        self._tg_token = QLineEdit()
+        self._tg_token.setPlaceholderText("123456789:ABCdefGHIjklMNOpqrSTUVwxyz")
+        self._tg_token.setFixedWidth(320)
+        tg_form.addRow("Bot Token:", self._tg_token)
+
+        self._tg_chat_id = QLineEdit()
+        self._tg_chat_id.setPlaceholderText("e.g. -100123456789")
+        self._tg_chat_id.setFixedWidth(200)
+        tg_form.addRow("Chat ID:", self._tg_chat_id)
+
+        tf.addLayout(tg_form)
+
+        tg_test_row = QHBoxLayout()
+        btn_tg_test = QPushButton("Send Test Message")
+        btn_tg_test.setFixedWidth(160)
+        btn_tg_test.clicked.connect(self._test_telegram)
+        self._tg_test_lbl = QLabel("")
+        self._tg_test_lbl.setStyleSheet("font-size:12px;background:transparent;")
+        tg_test_row.addWidget(btn_tg_test)
+        tg_test_row.addWidget(self._tg_test_lbl, 1)
+        tf.addLayout(tg_test_row)
+
+        layout.addWidget(tg_box)
+
         # ── Economics ──────────────────────────────────────────────
         econ_box = QGroupBox("Economics — Profitability Calculator")
         ef = QFormLayout(econ_box)
@@ -201,6 +249,9 @@ class SettingsPage(QWidget):
         self._app_password.setText(cfg.gmail_app_password)
         self._alert_to.setText(cfg.alert_to_email)
         self._elec_cost.setValue(cfg.electricity_cost_kwh)
+        self._tg_enabled.setChecked(cfg.telegram_enabled)
+        self._tg_token.setText(cfg.telegram_bot_token)
+        self._tg_chat_id.setText(cfg.telegram_chat_id)
 
     def _save(self):
         cfg = self._main.get_config()
@@ -216,6 +267,9 @@ class SettingsPage(QWidget):
         cfg.gmail_app_password = self._app_password.text().strip()
         cfg.alert_to_email = self._alert_to.text().strip()
         cfg.electricity_cost_kwh = self._elec_cost.value()
+        cfg.telegram_enabled = self._tg_enabled.isChecked()
+        cfg.telegram_bot_token = self._tg_token.text().strip()
+        cfg.telegram_chat_id = self._tg_chat_id.text().strip()
         cfg.save()
         self._main.reload_config()
         self._refresh_profit()
@@ -297,3 +351,24 @@ class SettingsPage(QWidget):
     def update_profit_estimate(self):
         """Called externally (e.g., on BTC price update) to refresh the profit display."""
         self._refresh_profit()
+
+    def _test_telegram(self):
+        token = self._tg_token.text().strip()
+        chat_id = self._tg_chat_id.text().strip()
+        if not token or not chat_id:
+            self._tg_test_lbl.setText("Enter bot token and chat ID first")
+            self._tg_test_lbl.setStyleSheet("color:#d29922;font-size:12px;background:transparent;")
+            return
+        self._tg_test_lbl.setText("Sending...")
+        self._tg_test_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        import threading
+        from ..alerts.telegram_notify import test_telegram
+        def run():
+            ok, msg = test_telegram(token, chat_id)
+            from PyQt6.QtCore import QTimer
+            color = "#3fb950" if ok else "#f85149"
+            QTimer.singleShot(0, lambda: (
+                self._tg_test_lbl.setText(f"{'✓' if ok else '✗'} {msg}"),
+                self._tg_test_lbl.setStyleSheet(f"color:{color};font-size:12px;background:transparent;"),
+            ))
+        threading.Thread(target=run, daemon=True).start()

@@ -443,6 +443,20 @@ class MainWindow(QMainWindow):
         if self._tray.isVisible():
             self._tray.showMessage("RigAlert™ by ING Mining Alert", text,
                                    QSystemTrayIcon.MessageIcon.Warning, 8000)
+        self._send_telegram_alert(text)
+
+    def _send_telegram_alert(self, text: str):
+        cfg = self.config
+        if not cfg.telegram_enabled or not cfg.telegram_bot_token or not cfg.telegram_chat_id:
+            return
+        import threading
+        from ..alerts.telegram_notify import send_telegram
+        msg = f"⚠ <b>RigAlert™</b>\n{text}"
+        threading.Thread(
+            target=send_telegram,
+            args=(cfg.telegram_bot_token, cfg.telegram_chat_id, msg),
+            daemon=True,
+        ).start()
 
     def _is_snoozed(self, ip: str) -> bool:
         until = self._snoozed.get(ip, 0)

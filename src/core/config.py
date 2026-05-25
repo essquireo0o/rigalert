@@ -51,6 +51,11 @@ class AppConfig:
     # Saved miners (list of dicts: ip, port, name, min_ths)
     saved_miners: list = None
 
+    # Telegram
+    telegram_enabled: bool = False
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
     # Economics
     electricity_cost_kwh: float = 0.07   # USD per kWh
 

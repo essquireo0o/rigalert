@@ -102,5 +102,24 @@ class AlertScheduler(QThread):
             else:
                 self.alert_failed.emit(f"Email failed: {err}")
 
+        if cfg.telegram_enabled and cfg.telegram_bot_token and cfg.telegram_chat_id:
+            from .telegram_notify import send_telegram
+            problems = [m for m in miners if m.status in ("offline", "warning") or m.alerts]
+            online = sum(1 for m in miners if m.status == "online")
+            total = len(miners)
+            lines = [f"<b>RigAlert™ {interval_label} Report</b>",
+                     f"{online}/{total} miners online"]
+            if problems:
+                lines.append(f"⚠ {len(problems)} issue(s):")
+                for m in problems[:5]:
+                    status_emoji = "🔴" if m.status == "offline" else "🟡"
+                    lines.append(f"  {status_emoji} {m.display_name} ({m.ip}) — {m.status}")
+                if len(problems) > 5:
+                    lines.append(f"  … and {len(problems) - 5} more")
+            tg_ok, tg_err = send_telegram(cfg.telegram_bot_token, cfg.telegram_chat_id,
+                                          "\n".join(lines))
+            if not tg_ok:
+                self.alert_failed.emit(f"Telegram failed: {tg_err}")
+
     def send_now(self, interval_label: str = "Manual"):
         self._send_alert(interval_label)
