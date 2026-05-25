@@ -23,6 +23,9 @@ All notable changes to RigAlert™ are documented here.
 ### Changed
 - Reworked `ROADMAP.md` into a commercial product roadmap organized by phased polish, dashboard, detail, alerting, firmware, farm layout, immersion, analytics, and hardening work.
 - Polished the top header into a commercial fleet status bar with a dedicated brand/subtitle area, compact metric chips, responsive chip visibility to prevent spacing overflow, and an explicit tray icon assignment to clear the startup warning.
+- Optimized the scan engine for responsiveness: known miners refresh first, full network discovery runs concurrently with short quick-probe timeouts, scans can be cancelled, progress is streamed live, scan timing metrics are logged, dead hosts are temporarily skipped, firmware fingerprints are cached in SQLite, and the Dashboard now exposes Quick Scan, Full Scan, Cancel, and Auto-refresh controls.
+- Added scan performance settings for worker count, quick-probe timeout, full-scan interval, dead-host backoff, slow-response logging, auto-refresh, and debug scan mode.
+- Reduced UI refresh churn by diffing miner table updates and throttling active alert refreshes during high-volume scan updates.
 
 ---
 

@@ -7,8 +7,8 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
-    QSizePolicy, QStackedWidget, QStatusBar, QSystemTrayIcon, QVBoxLayout, QWidget,
-    QMenu, QApplication,
+    QMenu, QApplication, QProgressBar, QSizePolicy, QStackedWidget,
+    QStatusBar, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
 from ..core.config import AppConfig
@@ -63,6 +63,9 @@ class MainWindow(QMainWindow):
         self._hash_alerted: set = set()
         # {ip: snoozed_until_epoch} — tray popups suppressed while epoch > now
         self._snoozed: Dict[str, float] = {}
+        self._scan_anim_step = 0
+        self._alerts_refresh_pending = False
+        self._last_scan_perf: Dict[str, object] = {}
 
         self._setup_ui()
         self._setup_scanner()
@@ -117,6 +120,15 @@ class MainWindow(QMainWindow):
         self.setStatusBar(sb)
         self._status_msg = QLabel("Ready")
         sb.addWidget(self._status_msg)
+        self._scan_detail_label = QLabel("Scanner idle")
+        self._scan_detail_label.setStyleSheet("color:#8b949e;font-size:11px;")
+        sb.addPermanentWidget(self._scan_detail_label)
+        self._scan_progress_bar = QProgressBar()
+        self._scan_progress_bar.setMaximumWidth(180)
+        self._scan_progress_bar.setFixedHeight(8)
+        self._scan_progress_bar.setTextVisible(False)
+        self._scan_progress_bar.setVisible(False)
+        sb.addPermanentWidget(self._scan_progress_bar)
         self._last_scan_label = QLabel("")
         sb.addPermanentWidget(self._last_scan_label)
 
@@ -275,6 +287,8 @@ class MainWindow(QMainWindow):
         self._scanner.scan_started.connect(self._on_scan_started)
         self._scanner.scan_finished.connect(self._on_scan_finished)
         self._scanner.log_event.connect(self._on_log_event)
+        self._scanner.scan_progress.connect(self._on_scan_progress)
+        self._scanner.scan_performance.connect(self._on_scan_performance)
         self._scanner.start()
 
     def _setup_alert_scheduler(self):
@@ -359,8 +373,18 @@ class MainWindow(QMainWindow):
         self._dashboard_page.update_miner(miner)
         self._miners_page.update_miner(miner)
         self._firmware_page.update_miner(miner)
-        self._alerts_page.refresh_active_alerts(list(self._miners.values()))
+        self._schedule_alerts_refresh()
         self._update_chips()
+
+    def _schedule_alerts_refresh(self):
+        if self._alerts_refresh_pending:
+            return
+        self._alerts_refresh_pending = True
+        QTimer.singleShot(750, self._refresh_alerts_page)
+
+    def _refresh_alerts_page(self):
+        self._alerts_refresh_pending = False
+        self._alerts_page.refresh_active_alerts(list(self._miners.values()))
 
     def _check_hash_instability(self, miner: MinerData):
         if miner.status == "offline":
@@ -440,12 +464,64 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot()
     def _on_scan_started(self):
+        self._scan_anim_step = 0
+        self._scan_progress_bar.setRange(0, 0)
+        self._scan_progress_bar.setVisible(True)
+        self._scan_detail_label.setText("Scanning...")
         self._status_msg.setText("Scanning network...")
 
     @pyqtSlot(int)
     def _on_scan_finished(self, count: int):
-        self._status_msg.setText(f"Scan complete — {count} miners found")
+        self._scan_progress_bar.setVisible(False)
+        elapsed = self._last_scan_perf.get("elapsed")
+        mode = self._last_scan_perf.get("mode", "scan")
+        if isinstance(elapsed, (int, float)):
+            self._status_msg.setText(f"{mode.title()} scan complete — {count} miners found in {elapsed:.1f}s")
+            self._scan_detail_label.setText(
+                f"{mode.title()} scan: {count} found · {elapsed:.1f}s · "
+                f"{self._last_scan_perf.get('workers', '?')} workers"
+            )
+        else:
+            self._status_msg.setText(f"Scan complete — {count} miners found")
+            self._scan_detail_label.setText(f"Scan complete · {count} found")
         self._last_scan_label.setText(f"Last scan: {datetime.now().strftime('%H:%M:%S')}")
+
+    @pyqtSlot(object)
+    def _on_scan_progress(self, progress: dict):
+        phase = progress.get("phase", "scan")
+        if phase == "cancel":
+            self._status_msg.setText(progress.get("message", "Cancelling scan..."))
+            self._scan_detail_label.setText("Cancelling scan...")
+            return
+
+        completed = int(progress.get("completed") or 0)
+        total = int(progress.get("total") or 0)
+        found = int(progress.get("found") or 0)
+        elapsed = float(progress.get("elapsed") or 0.0)
+        ip = progress.get("ip") or ""
+        message = progress.get("message") or "Scanning"
+        dots = "." * ((self._scan_anim_step % 3) + 1)
+        self._scan_anim_step += 1
+
+        if total > 0:
+            self._scan_progress_bar.setRange(0, total)
+            self._scan_progress_bar.setValue(min(completed, total))
+        else:
+            self._scan_progress_bar.setRange(0, 0)
+        detail_ip = f" · {ip}" if ip else ""
+        detail = f"{message}{dots} {completed}/{total} · {found} found · {elapsed:.1f}s{detail_ip}"
+        self._scan_detail_label.setText(detail)
+        self._status_msg.setText(detail)
+
+    @pyqtSlot(object)
+    def _on_scan_performance(self, perf: dict):
+        self._last_scan_perf = perf
+        slow = int(perf.get("slow_responses") or 0)
+        if slow:
+            self._logs_page.add_event(
+                "scanner", "INFO",
+                f"{slow} slow scan response(s); scan elapsed {float(perf.get('elapsed') or 0):.2f}s"
+            )
 
     @pyqtSlot(str, str, str)
     def _on_log_event(self, ip: str, level: str, message: str):

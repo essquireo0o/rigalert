@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar,
+    QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar,
     QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
@@ -328,10 +328,27 @@ class DashboardPage(QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
 
-        btn_scan = QPushButton("⟳  Scan Now")
+        self._auto_refresh = QCheckBox("Auto")
+        self._auto_refresh.setToolTip("Automatically refresh known miners on the configured interval")
+        self._auto_refresh.setChecked(getattr(self._main.get_config(), "auto_refresh_enabled", True))
+        self._auto_refresh.toggled.connect(self._toggle_auto_refresh)
+        title_row.addWidget(self._auto_refresh)
+
+        btn_scan = QPushButton("⟳  Quick Scan")
         btn_scan.setFixedHeight(32)
         btn_scan.clicked.connect(self._scan_now)
         title_row.addWidget(btn_scan)
+
+        btn_full_scan = QPushButton("Full Scan")
+        btn_full_scan.setFixedHeight(32)
+        btn_full_scan.setToolTip("Scan the configured network range for newly discovered miners")
+        btn_full_scan.clicked.connect(self._full_scan_now)
+        title_row.addWidget(btn_full_scan)
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setFixedHeight(32)
+        btn_cancel.clicked.connect(self._cancel_scan)
+        title_row.addWidget(btn_cancel)
 
         btn_add = QPushButton("+ Add Miner")
         btn_add.setObjectName("btnPrimary")
@@ -496,11 +513,22 @@ class DashboardPage(QWidget):
 
     def _scan_now(self):
         scanner = self._main.get_scanner()
-        if scanner.isRunning():
-            # Already scanning — just let it finish; don't restart mid-scan
-            self._main._status_msg.setText("Scan already in progress...")
-            return
-        scanner.start()
+        scanner.request_scan(full_network=False)
+        self._main._status_msg.setText("Quick scan queued...")
+
+    def _full_scan_now(self):
+        self._main.get_scanner().request_scan(full_network=True)
+        self._main._status_msg.setText("Full network scan queued...")
+
+    def _cancel_scan(self):
+        self._main.get_scanner().cancel_scan()
+
+    def _toggle_auto_refresh(self, checked: bool):
+        cfg = self._main.get_config()
+        cfg.auto_refresh_enabled = checked
+        cfg.save()
+        self._main.reload_config()
+        self._main._status_msg.setText("Auto-refresh enabled" if checked else "Auto-refresh paused")
 
     def _add_miner(self):
         from .dialogs import AddMinerDialog

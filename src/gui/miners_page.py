@@ -119,6 +119,9 @@ class MinersPage(QWidget):
         super().__init__(parent)
         self._main = main_win
         self._rows: Dict[str, int] = {}
+        self._row_signatures: Dict[str, tuple] = {}
+        self._miner_meta_cache: Dict[str, dict] = {}
+        self._meta_loaded_at = 0.0
         self._setup_ui()
 
     def _setup_ui(self):
@@ -236,14 +239,41 @@ class MinersPage(QWidget):
     def update_miner(self, miner: MinerData):
         if miner.ip in self._rows:
             row = self._rows[miner.ip]
+            signature = self._row_signature(miner)
+            if self._row_signatures.get(miner.ip) == signature:
+                self._update_last_seen(row, miner)
+                return
         else:
             row = self._table.rowCount()
             self._table.insertRow(row)
             self._rows[miner.ip] = row
+            signature = self._row_signature(miner)
 
         self._table.setRowHeight(row, 36)
         self._fill_row(row, miner)
+        self._row_signatures[miner.ip] = signature
         self._update_footer()
+        self._apply_filter()
+
+    def _row_signature(self, m: MinerData) -> tuple:
+        return (
+            m.status,
+            m.display_name,
+            m.model,
+            round(m.best_hashrate(), 3),
+            m.display_temp(),
+            m.display_fan(),
+            m.accepted,
+            m.rejected,
+            round(m.hw_error_rate, 3),
+            m.pool_url,
+            m.display_uptime(),
+        )
+
+    def _update_last_seen(self, row: int, m: MinerData):
+        item = self._table.item(row, 12)
+        if item:
+            item.setText(m.last_seen.strftime("%H:%M:%S") if m.last_seen else "—")
 
     def _fill_row(self, row: int, m: MinerData):
         temp = m.display_temp()
@@ -254,9 +284,7 @@ class MinersPage(QWidget):
         pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0]
         model_short = m.model[:30] if m.model else "—"
 
-        # Fetch notes from DB for tooltip
-        miners_db = self._main.get_db().get_miners()
-        miner_row = next((r for r in miners_db if r["ip"] == m.ip), {})
+        miner_row = self._miner_meta(m.ip)
         notes = miner_row.get("notes", "") or ""
 
         items = [
@@ -283,6 +311,7 @@ class MinersPage(QWidget):
     def remove_miner(self, ip: str):
         if ip in self._rows:
             row = self._rows.pop(ip)
+            self._row_signatures.pop(ip, None)
             self._table.removeRow(row)
             # Reindex
             self._rows = {}
@@ -291,7 +320,14 @@ class MinersPage(QWidget):
                 if item:
                     self._rows[item.text()] = r
 
-    def _apply_filter(self):
+    def _miner_meta(self, ip: str) -> dict:
+        now = time.time()
+        if now - self._meta_loaded_at > 5:
+            self._miner_meta_cache = {m["ip"]: m for m in self._main.get_db().get_miners()}
+            self._meta_loaded_at = now
+        return self._miner_meta_cache.get(ip, {})
+
+    def _apply_filter(self, *_):
         text = self._search.text().lower()
         group_id = self._group_filter.currentData()
 

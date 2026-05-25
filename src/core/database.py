@@ -75,6 +75,11 @@ class Database:
         for migration in [
             "ALTER TABLE miners ADD COLUMN notes TEXT DEFAULT ''",
             "ALTER TABLE miners ADD COLUMN group_id INTEGER DEFAULT NULL",
+            "ALTER TABLE miners ADD COLUMN last_scan_at TEXT DEFAULT ''",
+            "ALTER TABLE miners ADD COLUMN firmware_type TEXT DEFAULT ''",
+            "ALTER TABLE miners ADD COLUMN firmware_fingerprint TEXT DEFAULT ''",
+            "ALTER TABLE miners ADD COLUMN hostname TEXT DEFAULT ''",
+            "ALTER TABLE miners ADD COLUMN vendor TEXT DEFAULT ''",
         ]:
             try:
                 with self._conn() as c:
@@ -105,6 +110,27 @@ class Database:
     def set_miner_group(self, ip: str, group_id: Optional[int]):
         with self._conn() as c:
             c.execute("UPDATE miners SET group_id=? WHERE ip=?", (group_id, ip))
+
+    def update_scan_cache(self, ip: str, last_scan_at: str = "", firmware_type: str = "",
+                          firmware_fingerprint: str = "", hostname: str = "",
+                          vendor: str = ""):
+        with self._conn() as c:
+            c.execute("""
+                UPDATE miners
+                SET last_scan_at=?,
+                    firmware_type=CASE WHEN ? != '' THEN ? ELSE firmware_type END,
+                    firmware_fingerprint=CASE WHEN ? != '' THEN ? ELSE firmware_fingerprint END,
+                    hostname=CASE WHEN ? != '' THEN ? ELSE hostname END,
+                    vendor=CASE WHEN ? != '' THEN ? ELSE vendor END
+                WHERE ip=?
+            """, (
+                last_scan_at,
+                firmware_type, firmware_type,
+                firmware_fingerprint, firmware_fingerprint,
+                hostname, hostname,
+                vendor, vendor,
+                ip,
+            ))
 
     # ── Groups ────────────────────────────────────────────────────────────
 

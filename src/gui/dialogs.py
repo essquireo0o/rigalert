@@ -393,7 +393,7 @@ class AddMinerDialog(QDialog):
 class _ScanWorker(QThread):
     found = pyqtSignal(object)
     finished = pyqtSignal()
-    progress = pyqtSignal(int)
+    progress = pyqtSignal(object)
 
     def __init__(self, scanner: MinerScanner, start_ip: str, end_ip: str,
                  port: int, timeout: float, parent=None):
@@ -404,10 +404,16 @@ class _ScanWorker(QThread):
         self._port = port
         self._timeout = timeout
         self._results: List[MinerData] = []
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
         results = self._scanner.scan_network_once(
-            self._start_ip, self._end_ip, self._port, self._timeout, max_workers=100
+            self._start_ip, self._end_ip, self._port, self._timeout, max_workers=100,
+            progress_callback=self.progress.emit,
+            cancel_callback=lambda: self._cancelled,
         )
         for m in results:
             self.found.emit(m)
@@ -453,6 +459,12 @@ class ScanNetworkDialog(QDialog):
         self._btn_scan.clicked.connect(self._start_scan)
         btn_row.addWidget(self._btn_scan)
 
+        self._btn_cancel = QPushButton("Cancel")
+        self._btn_cancel.setFixedWidth(90)
+        self._btn_cancel.setEnabled(False)
+        self._btn_cancel.clicked.connect(self._cancel_scan)
+        btn_row.addWidget(self._btn_cancel)
+
         self._scan_lbl = QLabel("")
         self._scan_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
         btn_row.addWidget(self._scan_lbl, 1)
@@ -487,6 +499,7 @@ class ScanNetworkDialog(QDialog):
         self._list.clear()
         self._progress.setVisible(True)
         self._btn_scan.setEnabled(False)
+        self._btn_cancel.setEnabled(True)
         self._scan_lbl.setText("Scanning...")
 
         self._worker = _ScanWorker(
@@ -498,8 +511,27 @@ class ScanNetworkDialog(QDialog):
             self,
         )
         self._worker.found.connect(self._on_found)
+        self._worker.progress.connect(self._on_progress)
         self._worker.finished.connect(self._on_done)
         self._worker.start()
+
+    def _cancel_scan(self):
+        if self._worker:
+            self._worker.cancel()
+            self._scan_lbl.setText("Cancelling scan...")
+        self._btn_cancel.setEnabled(False)
+
+    def _on_progress(self, progress: dict):
+        completed = int(progress.get("completed") or 0)
+        total = int(progress.get("total") or 0)
+        found = int(progress.get("found") or 0)
+        elapsed = float(progress.get("elapsed") or 0)
+        ip = progress.get("ip") or ""
+        phase = progress.get("phase", "scan")
+        if total > 0:
+            self._progress.setRange(0, total)
+            self._progress.setValue(min(completed, total))
+        self._scan_lbl.setText(f"{phase.title()} {completed}/{total}  ·  {found} found  ·  {elapsed:.1f}s  ·  {ip}")
 
     def _on_found(self, miner: MinerData):
         self._found.append(miner)
@@ -512,6 +544,7 @@ class ScanNetworkDialog(QDialog):
     def _on_done(self):
         self._progress.setVisible(False)
         self._btn_scan.setEnabled(True)
+        self._btn_cancel.setEnabled(False)
         self._scan_lbl.setText(f"Scan complete — {len(self._found)} miners found")
 
     def _toggle_all(self):

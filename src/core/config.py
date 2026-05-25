@@ -21,6 +21,12 @@ class AppConfig:
     scan_interval_seconds: int = 60
     connection_timeout: float = 8.0
     max_scan_workers: int = 50
+    quick_scan_timeout: float = 0.8
+    full_scan_interval_minutes: int = 15
+    dead_host_backoff_seconds: int = 300
+    slow_response_seconds: float = 2.5
+    auto_refresh_enabled: bool = True
+    debug_scan_enabled: bool = False
 
     # Thresholds
     default_min_ths: float = 80.0
