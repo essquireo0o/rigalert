@@ -53,6 +53,10 @@ class MainWindow(QMainWindow):
         self._temp_history: Dict[str, List[Tuple[float, float]]] = {}
         # IPs currently in thermal-runaway alert state (cleared when temp drops)
         self._thermal_alerted: set = set()
+        # {ip: [(epoch_seconds, ths), ...]} — rolling 10-minute hashrate window
+        self._hash_history: Dict[str, List[Tuple[float, float]]] = {}
+        # IPs currently in hash-drop alert state
+        self._hash_alerted: set = set()
 
         self._setup_ui()
         self._setup_scanner()
@@ -300,10 +304,45 @@ class MainWindow(QMainWindow):
     def _on_miner_updated(self, miner: MinerData):
         self._miners[miner.ip] = miner
         self._check_thermal_runaway(miner)
+        self._check_hash_instability(miner)
         self._dashboard_page.update_miner(miner)
         self._miners_page.update_miner(miner)
         self._firmware_page.update_miner(miner)
         self._update_chips()
+
+    def _check_hash_instability(self, miner: MinerData):
+        if miner.status == "offline":
+            self._hash_alerted.discard(miner.ip)
+            return
+        ths = miner.best_hashrate()
+        if ths <= 0:
+            return
+
+        now = datetime.now().timestamp()
+        history = self._hash_history.setdefault(miner.ip, [])
+        history.append((now, ths))
+        cutoff = now - 600  # 10-minute window
+        self._hash_history[miner.ip] = [(t, v) for t, v in history if t >= cutoff]
+
+        if len(self._hash_history[miner.ip]) < 4:
+            return  # not enough data yet
+
+        avg = sum(v for _, v in self._hash_history[miner.ip]) / len(self._hash_history[miner.ip])
+        if avg < 1.0:
+            return
+
+        drop_pct = (avg - ths) / avg * 100
+        if drop_pct >= 20.0 and miner.ip not in self._hash_alerted:
+            self._hash_alerted.add(miner.ip)
+            name = miner.display_name
+            msg = (f"Hash instability: {name} dropped to {ths:.1f} TH/s "
+                   f"({drop_pct:.0f}% below 10-min avg of {avg:.1f} TH/s)")
+            self.db.log_event(miner.ip, "WARN", msg)
+            self._logs_page.add_event(miner.ip, "WARN", msg)
+            self._show_popup(f"HASH DROP\n{msg}")
+            self._status_msg.setText(f"⚠ {msg}")
+        elif drop_pct < 10.0:
+            self._hash_alerted.discard(miner.ip)
 
     def _check_thermal_runaway(self, miner: MinerData):
         temp = miner.temp_chip_max or miner.temp_outlet or miner.temp_inlet
