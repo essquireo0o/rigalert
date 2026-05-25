@@ -254,12 +254,43 @@ class MinerCard(QFrame):
         self._build(m)
 
 
+_STAT_CHIP_QSS = (
+    "QFrame#statChip{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:4px 12px;}"
+)
+
+_BTC_PER_TH_PER_DAY = 9.5e-8  # rough network estimate; updated manually as difficulty changes
+
+
+def _make_stat_chip(parent=None) -> "tuple[QFrame, QLabel, QLabel]":
+    chip = QFrame(parent)
+    chip.setObjectName("statChip")
+    chip.setStyleSheet(_STAT_CHIP_QSS)
+    chip.setMinimumWidth(110)
+    vl = QVBoxLayout(chip)
+    vl.setContentsMargins(0, 4, 0, 4)
+    vl.setSpacing(2)
+    key_lbl = QLabel()
+    key_lbl.setStyleSheet("color:#8b949e;font-size:10px;font-weight:600;background:transparent;")
+    key_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    val_lbl = QLabel()
+    val_lbl.setStyleSheet("color:#e6edf3;font-size:16px;font-weight:700;background:transparent;")
+    val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    vl.addWidget(key_lbl)
+    vl.addWidget(val_lbl)
+    return chip, key_lbl, val_lbl
+
+
 class DashboardPage(QWidget):
     def __init__(self, main_win, parent=None):
         super().__init__(parent)
         self._main = main_win
         self._cards: Dict[str, MinerCard] = {}
+        self._btc_price: float = 0.0
         self._setup_ui()
+
+    def set_btc_price(self, price: float):
+        self._btc_price = price
+        self._update_stats()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -290,6 +321,51 @@ class DashboardPage(QWidget):
         self._summary_lbl.setObjectName("sectionSub")
         layout.addWidget(self._summary_lbl)
 
+        # Fleet stats bar
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(10)
+
+        chip_hs, _, self._stat_hs = _make_stat_chip()
+        _, key_hs, _ = chip_hs, QLabel("HASHRATE"), self._stat_hs
+        chip_hs.layout().itemAt(0).widget().setText("HASHRATE")
+        self._stat_hs.setText("— TH/s")
+        self._stat_hs.setStyleSheet(f"color:{BITCOIN_ORANGE};font-size:16px;font-weight:700;background:transparent;")
+
+        chip_pw, _, self._stat_pw = _make_stat_chip()
+        chip_pw.layout().itemAt(0).widget().setText("POWER")
+        self._stat_pw.setText("— W")
+        self._stat_pw.setStyleSheet("color:#79c0ff;font-size:16px;font-weight:700;background:transparent;")
+
+        chip_ef, _, self._stat_ef = _make_stat_chip()
+        chip_ef.layout().itemAt(0).widget().setText("EFFICIENCY")
+        self._stat_ef.setText("— W/TH")
+        self._stat_ef.setStyleSheet("color:#d2a8ff;font-size:16px;font-weight:700;background:transparent;")
+
+        chip_rev, _, self._stat_rev = _make_stat_chip()
+        chip_rev.layout().itemAt(0).widget().setText("EST. DAILY REV")
+        self._stat_rev.setText("—")
+        self._stat_rev.setStyleSheet(f"color:#3fb950;font-size:16px;font-weight:700;background:transparent;")
+
+        chip_on, _, self._stat_on = _make_stat_chip()
+        chip_on.layout().itemAt(0).widget().setText("ONLINE")
+        self._stat_on.setText("0")
+        self._stat_on.setStyleSheet("color:#3fb950;font-size:16px;font-weight:700;background:transparent;")
+
+        chip_warn, _, self._stat_warn = _make_stat_chip()
+        chip_warn.layout().itemAt(0).widget().setText("WARNINGS")
+        self._stat_warn.setText("0")
+        self._stat_warn.setStyleSheet("color:#d29922;font-size:16px;font-weight:700;background:transparent;")
+
+        chip_off, _, self._stat_off = _make_stat_chip()
+        chip_off.layout().itemAt(0).widget().setText("OFFLINE")
+        self._stat_off.setText("0")
+        self._stat_off.setStyleSheet("color:#f85149;font-size:16px;font-weight:700;background:transparent;")
+
+        for chip in [chip_hs, chip_pw, chip_ef, chip_rev, chip_on, chip_warn, chip_off]:
+            stats_row.addWidget(chip)
+        stats_row.addStretch()
+        layout.addLayout(stats_row)
+
         # Scroll area for cards
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -314,6 +390,7 @@ class DashboardPage(QWidget):
             self._cards[miner.ip] = card
             self._relayout()
         self._update_summary()
+        self._update_stats()
 
     def remove_miner(self, ip: str):
         if ip in self._cards:
@@ -351,6 +428,47 @@ class DashboardPage(QWidget):
             f"{total} miners  ·  {online} online  ·  {warning} warnings  ·  "
             f"{offline} offline  ·  {total_ths:.1f} TH/s total"
         )
+
+    def _update_stats(self):
+        miners = list(self._main.get_miners().values())
+        active = [m for m in miners if m.status != "offline"]
+        total_ths = sum(m.best_hashrate() for m in active)
+        total_watts = sum(m.power_watts for m in active if m.power_watts > 0)
+
+        if total_ths >= 1000:
+            self._stat_hs.setText(f"{total_ths/1000:.2f} PH/s")
+        elif total_ths > 0:
+            self._stat_hs.setText(f"{total_ths:.1f} TH/s")
+        else:
+            self._stat_hs.setText("— TH/s")
+
+        if total_watts >= 1_000_000:
+            self._stat_pw.setText(f"{total_watts/1_000_000:.2f} MW")
+        elif total_watts >= 1000:
+            self._stat_pw.setText(f"{total_watts/1000:.2f} kW")
+        elif total_watts > 0:
+            self._stat_pw.setText(f"{total_watts:,.0f} W")
+        else:
+            self._stat_pw.setText("— W")
+
+        if total_ths > 0 and total_watts > 0:
+            self._stat_ef.setText(f"{total_watts/total_ths:.1f} W/TH")
+        else:
+            self._stat_ef.setText("— W/TH")
+
+        if self._btc_price > 0 and total_ths > 0:
+            daily_btc = total_ths * _BTC_PER_TH_PER_DAY
+            daily_usd = daily_btc * self._btc_price
+            self._stat_rev.setText(f"${daily_usd:,.2f}")
+        else:
+            self._stat_rev.setText("—")
+
+        online = sum(1 for m in miners if m.status == "online")
+        warning = sum(1 for m in miners if m.status == "warning")
+        offline = sum(1 for m in miners if m.status == "offline")
+        self._stat_on.setText(str(online))
+        self._stat_warn.setText(str(warning))
+        self._stat_off.setText(str(offline))
 
     def _scan_now(self):
         scanner = self._main.get_scanner()
