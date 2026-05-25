@@ -1,156 +1,132 @@
-# RigAlert™ by ING Mining — Product Roadmap
+# RigAlert™ by ING Mining Commercial Product Roadmap
 
-## Status Legend
-- ✅ Done  - 🔄 In Progress  - ⬜ Planned  - 🔒 Blocked
+RigAlert is moving toward a commercial-grade ASIC miner monitoring and management product. The guiding rule is incremental improvement: build one feature at a time, test after each feature, update the changelog, and commit only once the app is stable.
 
----
+## Product Guardrails
 
-## PHASE 1 — FOUNDATION ✅ (complete)
-1. ✅ Professional RigAlert™ dashboard (card view + table view)
-2. ✅ Sidebar navigation (icon-based, 6 tabs)
-3. ✅ Miner card system (per-miner cards with live data)
-4. ✅ Settings page
-5. ✅ Logs page
-6. ✅ Dark industrial UI (GitHub-dark inspired, gold/green/red accents)
-7. ✅ Responsive card layout
-8. ✅ Status indicators (online/offline/warning/critical)
-9. ✅ Live refresh engine (background QThread scanner)
-10. ✅ Persistent configuration (JSON config + SQLite DB)
+- Preserve existing working functionality.
+- Keep changes modular and reversible.
+- Maintain the dark RigAlert™ by ING Mining visual system.
+- Never enable hashboards automatically.
+- Never reboot, flash firmware, reset, or change pools without explicit user confirmation.
+- Treat `192.168.1.223` as a VNish 1.2.7 read-only test miner unless explicit action is approved.
+- Prefer read-only telemetry, dry runs, audit logging, and confirmation dialogs for management features.
 
----
+## Phase 1 — Commercial Polish
 
-## PHASE 2 — MINER MANAGEMENT 🔄
-1. ✅ Add miner manually
-2. ✅ Edit miner (name, min hashrate, notes)
-3. ✅ Remove miner
-4. ✅ LAN scanner (auto-discover subnet)
-5. ⬜ Bulk miner import (CSV)
-6. 🔄 Miner groups (flat + hierarchical)
-7. ⬜ Farm hierarchy: Site → Building → Row → Rack/Trough → Miner
-8. ✅ Miner tags and notes
-9. ✅ Online/offline detection
-10. ✅ Read-only monitoring mode (never modifies without explicit action)
+- [x] Fix top header spacing/overflow and make the header look commercial.
+- [ ] Make all pages visually consistent.
+- [ ] Improve sidebar icons/tooltips.
+- [ ] Add page titles and descriptions.
+- [ ] Improve empty states.
+- [ ] Improve table spacing and column sizing.
+- [ ] Add loading states.
+- [ ] Add toast notifications.
+- [ ] Add confirmation dialogs.
+- [ ] Add polished About page.
+- [ ] Add version/build info.
 
----
+## Phase 2 — Dashboard Upgrade
 
-## PHASE 3 — FIRMWARE SYSTEM 🔄
-1. ✅ Detect VNish firmware
-2. ✅ Detect Braiins OS firmware
-3. ✅ Detect stock Antminer firmware
-4. ✅ Firmware version detection (from CGMiner API)
-5. 🔄 Firmware config backup (VNish HTTP API)
-6. ⬜ Firmware restore workflow
-7. ⬜ Firmware install wizard (file upload)
-8. ⬜ Firmware uninstall workflow
-9. ✅ Dry-run mode (all dangerous actions simulate before executing)
-10. ✅ Dangerous action confirmation dialogs
-11. 🔄 Firmware audit logging
-12. ⬜ Firmware compatibility checker (model × firmware matrix)
-13. ⬜ Recovery mode support
+- [ ] Better fleet summary cards.
+- [ ] Miner health score.
+- [ ] Warning/offline/online breakdown.
+- [ ] Revenue estimate card.
+- [ ] BTC price card.
+- [ ] Power cost card.
+- [ ] Efficiency card.
+- [ ] Mini charts for hashrate, temp, power.
+- [ ] Click miner card to open detail page.
 
----
+## Phase 3 — Miner Detail Page
 
-## PHASE 4 — ASIC TELEMETRY 🔄
-1. ✅ Hashrate monitoring (5s, 1m, 5m, 15m)
-2. ✅ Wattage monitoring (where reported by firmware)
-3. ✅ ASIC chip temps (chip max, PCB, inlet, outlet)
-4. ✅ Fan RPM monitoring
-5. ✅ Pool monitoring (URL, user, status, accepted/rejected)
-6. ✅ Uptime monitoring
-7. ✅ Chain/hashboard detection + per-chain data (VNish)
-8. ✅ HW error detection
-9. ✅ Rejected share monitoring
-10. ⬜ Autotune status monitoring
-11. ⬜ ASIC instability detection
-12. ⬜ Thermal runaway detection
-13. ✅ Historical telemetry storage (SQLite readings table)
+- [ ] Full miner profile.
+- [ ] Firmware type/version.
+- [ ] Pool info.
+- [ ] Hashboard status.
+- [ ] Fan status.
+- [ ] Temp history.
+- [ ] Hashrate history.
+- [ ] Error history.
+- [ ] Notes.
+- [ ] Maintenance status.
+- [ ] Safe action buttons.
 
----
+## Phase 4 — BTC / Altcoin Alerts
 
-## PHASE 5 — IMMERSION COOLING ⬜
-1. ⬜ Immersion mode toggle per miner
-2. ⬜ Fluid temperature monitoring
-3. ⬜ Inlet/outlet temperature tracking
-4. ⬜ Pump monitoring
-5. ⬜ Chiller monitoring
-6. ⬜ Trough management (assign miners to troughs)
-7. ⬜ Flow-rate monitoring
-8. ⬜ Emergency thermal shutdown protocol
-9. ⬜ PVC temperature safety thresholds
-10. ⬜ Immersion cooling dashboard
-11. ⬜ Cooling analytics
+- [ ] Add coin watchlist.
+- [ ] Support BTC, LTC, DOGE, BCH, KAS, ETC, XMR, ETH-style tracked assets where the selected API supports them.
+- [ ] User sets above/below price alerts.
+- [ ] User sets percent-move alerts.
+- [ ] User sets daily/weekly movement alerts.
+- [ ] Alert delivery through desktop, email, and Telegram.
+- [ ] Alert history.
+- [ ] Snooze/dismiss crypto alerts.
+- [ ] Use CoinGecko or another no-key source first.
 
----
+## Phase 5 — Alert Engine Cleanup
 
-## PHASE 6 — ALERT SYSTEM 🔄
-1. ✅ Miner offline alerts
-2. ✅ High temperature alerts (warn + critical)
-3. ✅ Low hashrate alerts
-4. ✅ Pool disconnect detection
-5. ✅ Fan failure alerts
-6. ⬜ Firmware change alerts
-7. ⬜ Thermal runaway alerts
-8. ⬜ Immersion cooling alerts
-9. ⬜ Telegram alerts
-10. ⬜ Discord alerts
-11. ✅ Email alerts (Gmail app password)
-12. ✅ Desktop tray notifications
-13. ⬜ Alert acknowledgement system
-14. ⬜ Alert escalation logic (warn → critical → notify)
+- [ ] Stop log spam from repeated low-hash warnings.
+- [ ] Deduplicate repeated alerts.
+- [ ] Add cooldown periods.
+- [ ] Add alert severity levels.
+- [ ] Add acknowledged/snoozed/resolved states.
+- [ ] Add summary alert emails.
+- [ ] Add per-miner thresholds.
+- [ ] Add global default thresholds.
 
----
+## Phase 6 — Firmware Tools
 
-## PHASE 7 — MARKET / CRYPTO ✅ (basic)
-1. ✅ Bitcoin price alerts (above/below threshold)
-2. ✅ Altcoin price alerts (CoinGecko, any coin ID)
-3. ✅ User-defined thresholds
-4. ✅ Percentage move alerts (24h ±%)
-5. ⬜ Profitability calculator
-6. ⬜ Power cost calculator
-7. ⬜ Fleet efficiency rankings
-8. ⬜ Estimated revenue display
-9. ⬜ Coin watchlist
-10. ⬜ Mining calculator dashboard
+- [ ] VNish detection.
+- [ ] Braiins OS detection.
+- [ ] Stock Antminer detection.
+- [ ] Firmware version display.
+- [ ] Backup config button.
+- [ ] Restore config button.
+- [ ] Dry-run firmware install.
+- [ ] Dry-run restore stock firmware.
+- [ ] Explicit dangerous-action confirmation.
+- [ ] Audit log every firmware action.
 
----
+## Phase 7 — Miner Groups / Farm Layout
 
-## PHASE 8 — ANALYTICS ⬜
-1. ⬜ Historical hashrate charts (per miner + fleet)
-2. ⬜ Temperature history charts
-3. ⬜ Power history charts
-4. ⬜ Pool history
-5. ⬜ Uptime analytics
-6. ⬜ Fleet analytics (aggregate trends)
-7. ⬜ Export CSV (readings, events)
-8. ⬜ Export JSON
-9. ⬜ Reporting engine
+- [ ] Create/edit/delete groups.
+- [ ] Site → Building → Row → Rack/Trough → Miner hierarchy.
+- [ ] Drag miners into groups.
+- [ ] Group dashboard.
+- [ ] Group-level alerts.
+- [ ] Group-level profitability.
 
----
+## Phase 8 — Immersion Cooling
 
-## PHASE 9 — ADVANCED OPERATIONS ⬜
-1. ⬜ Batch operations (apply action to selected miners)
-2. ⬜ Safe reboot workflow (with confirmation + audit log)
-3. ⬜ Profile system (save/load miner configs)
-4. ⬜ Tuning presets (undervolting, performance, efficiency)
-5. ⬜ Undervolt presets
-6. ⬜ Immersion cooling presets
-7. ⬜ Scheduled maintenance windows
-8. ⬜ Maintenance mode (suppress alerts while working)
-9. ✅ Test/dry-run mode
-10. 🔄 Full audit log (all write actions)
-11. ⬜ Operator permissions/roles
-12. ⬜ Operator accounts
+- [ ] Add immersion mode per miner/group.
+- [ ] Fluid temp fields.
+- [ ] Inlet/outlet temp fields.
+- [ ] Pump status.
+- [ ] Chiller status.
+- [ ] Trough dashboard.
+- [ ] PVC safety threshold.
+- [ ] Cooling alerts.
 
----
+## Phase 9 — Analytics / Reports
 
-## PHASE 10 — FUTURE ⬜
-1. ⬜ Mobile companion app
-2. ⬜ Web dashboard
-3. ⬜ Multi-user support
-4. ⬜ Cloud sync
-5. ⬜ Remote access gateway
-6. ⬜ AI diagnostics
-7. ⬜ Predictive failure detection
-8. ⬜ Smart autotuning recommendations
-9. ⬜ ASIC health scoring
-10. ⬜ Self-healing automation
+- [ ] Historical hashrate chart.
+- [ ] Temperature chart.
+- [ ] Power chart.
+- [ ] Alert history chart.
+- [ ] Export CSV.
+- [ ] Export JSON.
+- [ ] Daily summary report.
+- [ ] Fleet uptime report.
+
+## Phase 10 — Product Hardening
+
+- [ ] Installer polish.
+- [ ] App icon polish.
+- [ ] Error handling.
+- [ ] Settings validation.
+- [ ] Secure credential storage.
+- [ ] Backup/restore settings.
+- [ ] Crash logging.
+- [ ] Auto-update plan.
+- [ ] License/about screen.

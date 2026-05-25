@@ -20,6 +20,10 @@ All notable changes to RigAlert™ are documented here.
 - **ASIC hash instability detection** — alerts when current TH/s drops ≥ 20% below the miner's own rolling 10-minute average; fires tray popup + WARN log event; auto-clears when drop normalises
 - Sidebar nav now has 7 tabs: Dashboard, Miners, Alerts, Firmware, Groups, Settings, Logs
 
+### Changed
+- Reworked `ROADMAP.md` into a commercial product roadmap organized by phased polish, dashboard, detail, alerting, firmware, farm layout, immersion, analytics, and hardening work.
+- Polished the top header into a commercial fleet status bar with a dedicated brand/subtitle area, compact metric chips, responsive chip visibility to prevent spacing overflow, and an explicit tray icon assignment to clear the startup warning.
+
 ---
 
 ## [2.0.0] — Initial Release (Refactor)

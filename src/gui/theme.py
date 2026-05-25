@@ -47,21 +47,34 @@ QPushButton#navBtn[active="true"] {
 }
 
 /* ── Top Status Bar ───────────────────────────────────────── */
-QWidget#statusBar {
+QWidget#topHeader {
     background-color: #010409;
     border-bottom: 1px solid #21262d;
-    min-height: 48px;
-    max-height: 48px;
-    padding: 0 16px;
 }
-
-QLabel#statLabel {
-    background-color: #161b22;
+QWidget#headerBrand {
+    background-color: transparent;
+}
+QLabel#headerTitle {
+    color: #c8a94b;
+    font-size: 16px;
+    font-weight: 800;
+}
+QLabel#headerSubtitle {
+    color: #8b949e;
+    font-size: 11px;
+    font-weight: 500;
+}
+QWidget#headerMetrics {
+    background-color: transparent;
+}
+QLabel[metricChip="true"] {
+    background-color: #0d1117;
     border: 1px solid #30363d;
     border-radius: 6px;
-    padding: 4px 12px;
-    font-size: 12px;
-    font-weight: 600;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 68px;
 }
 QLabel#statOnline      { color: #3fb950; border-color: #238636; }
 QLabel#statOffline     { color: #f85149; border-color: #da3633; }

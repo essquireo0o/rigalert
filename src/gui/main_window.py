@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
-    QStackedWidget, QStatusBar, QSystemTrayIcon, QVBoxLayout, QWidget,
+    QSizePolicy, QStackedWidget, QStatusBar, QSystemTrayIcon, QVBoxLayout, QWidget,
     QMenu, QApplication,
 )
 
@@ -40,6 +40,10 @@ class StatusChip(QLabel):
     def __init__(self, obj_name: str, parent=None):
         super().__init__(parent)
         self.setObjectName(obj_name)
+        self.setProperty("metricChip", "true")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setMinimumHeight(32)
+        self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
 
 
 class MainWindow(QMainWindow):
@@ -70,6 +74,7 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.resize(1300, 820)
         self._nav_click(0)
+        self._apply_header_responsive()
 
     # ── UI Setup ───────────────────────────────────────────────────────────
 
@@ -171,20 +176,42 @@ class MainWindow(QMainWindow):
 
     def _make_status_bar(self) -> QWidget:
         bar = QWidget()
-        bar.setObjectName("statusBar")
-        bar.setFixedHeight(48)
+        bar.setObjectName("topHeader")
+        bar.setMinimumHeight(62)
+        bar.setMaximumHeight(68)
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(18, 8, 14, 8)
+        layout.setSpacing(12)
 
         self._title_label = QLabel("RigAlert™ by ING Mining")
-        self._title_label.setStyleSheet(f"font-size:15px;font-weight:700;color:{BITCOIN_ORANGE};margin-right:16px;background:transparent;")
-        layout.addWidget(self._title_label)
+        self._title_label.setObjectName("headerTitle")
+        self._title_label.setToolTip("RigAlert by ING Mining")
+        self._title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 
-        layout.addStretch()
+        self._header_subtitle = QLabel("Professional ASIC fleet monitor")
+        self._header_subtitle.setObjectName("headerSubtitle")
+        self._header_subtitle.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+
+        brand = QWidget()
+        brand.setObjectName("headerBrand")
+        brand.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        brand_layout = QVBoxLayout(brand)
+        brand_layout.setContentsMargins(0, 0, 0, 0)
+        brand_layout.setSpacing(1)
+        brand_layout.addWidget(self._title_label)
+        brand_layout.addWidget(self._header_subtitle)
+        layout.addWidget(brand, 1)
+
+        metrics = QWidget()
+        metrics.setObjectName("headerMetrics")
+        metrics_layout = QHBoxLayout(metrics)
+        metrics_layout.setContentsMargins(0, 0, 0, 0)
+        metrics_layout.setSpacing(6)
+        layout.addWidget(metrics, 0, Qt.AlignmentFlag.AlignRight)
 
         self._chip_hash = StatusChip("statHash")
         self._chip_hash.setText("0.0 TH/s")
+        self._chip_hash.setToolTip("Total fleet hashrate")
         self._chip_power = StatusChip("statPower")
         self._chip_power.setText("0 W")
         self._chip_power.setToolTip("Total fleet power draw")
@@ -204,7 +231,7 @@ class MainWindow(QMainWindow):
         for chip in [self._chip_hash, self._chip_power, self._chip_efficiency,
                      self._chip_btc, self._chip_online, self._chip_offline, self._chip_warn]:
             chip.setObjectName(chip.objectName())
-            layout.addWidget(chip)
+            metrics_layout.addWidget(chip)
 
         return bar
 
@@ -277,6 +304,14 @@ class MainWindow(QMainWindow):
 
     def _setup_tray(self):
         self._tray = QSystemTrayIcon(self)
+        tray_icon = QApplication.windowIcon()
+        if tray_icon.isNull():
+            base = getattr(sys, "_MEIPASS", os.path.join(os.path.dirname(__file__), "..", "..", ""))
+            ico_path = os.path.join(base, "rigalert.ico")
+            if os.path.exists(ico_path):
+                tray_icon = QIcon(ico_path)
+        if not tray_icon.isNull():
+            self._tray.setIcon(tray_icon)
         self._tray.setToolTip("RigAlert™ by ING Mining — Miner Monitor")
         tray_menu = QMenu()
         tray_menu.setStyleSheet(DARK_QSS)
@@ -300,6 +335,19 @@ class MainWindow(QMainWindow):
     def _tray_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_normal()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_header_responsive()
+
+    def _apply_header_responsive(self):
+        if not hasattr(self, "_chip_btc"):
+            return
+        width = self.width()
+        self._header_subtitle.setVisible(width >= 760)
+        self._chip_btc.setVisible(width >= 1180)
+        self._chip_efficiency.setVisible(width >= 1060)
+        self._chip_power.setVisible(width >= 960)
 
     # ── Slots ──────────────────────────────────────────────────────────────
 
@@ -494,10 +542,13 @@ class MainWindow(QMainWindow):
         farm = self.config.farm_name
         if farm:
             self.setWindowTitle(f"RigAlert™ by ING Mining — {farm}")
-            self._title_label.setText(f"RigAlert™ by ING Mining  —  {farm}")
+            self._title_label.setText("RigAlert™ by ING Mining")
+            self._header_subtitle.setText(f"Farm: {farm}")
         else:
             self.setWindowTitle("RigAlert™ by ING Mining — Bitcoin Miner Monitor")
             self._title_label.setText("RigAlert™ by ING Mining")
+            self._header_subtitle.setText("Professional ASIC fleet monitor")
+        self._title_label.setToolTip(self.windowTitle())
 
     def reload_config(self):
         self.config = AppConfig.load()
