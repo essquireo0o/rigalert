@@ -13,7 +13,12 @@ All notable changes to RigAlert™ are documented here.
 - `src/core/firmware.py` — `detect_type()`, `firmware_badge_color()`, VNish HTTP helpers (`vnish_get_info`, `vnish_get_config`, `vnish_get_network`)
 - **Crypto price alerts** — polls CoinGecko every 5 min (no API key), BTC above/below thresholds, ±% 24h move alerts, altcoin support (any CoinGecko coin ID), state-change deduplication (one alert per threshold cross), "Check Prices Now" button in Alerts page
 - **Per-miner notes** — notes field in Add/Edit Miner dialog, stored in SQLite, shown as row tooltip in Miners table; DB migration handles existing installations
-- Sidebar nav now has 6 tabs: Dashboard, Miners, Alerts, Firmware, Settings, Logs
+- **Miner Groups** — create/edit/delete named groups with color labels; assign miners to groups; filter Miners page by group; Groups management page (slot 5 in nav); group member detail panel
+- **Fleet stats bar** on Dashboard — TH/s, total power (kW), efficiency (W/TH), estimated daily USD revenue (BTC price × fleet TH/s), online/warning/offline counts; BTC price auto-fed from PriceMonitor
+- **Firmware type badge** on miner cards — color-coded pill (VNish=blue, Braiins=green, Stock=gray) derived from existing CGMiner firmware string; tooltip shows raw version
+- **Thermal runaway detection** — alerts when any miner's chip temp rises ≥ 5°C within 60 seconds while above 70°C; fires tray popup + CRIT log event; auto-clears when temp stabilises; never changes any miner settings
+- **ASIC hash instability detection** — alerts when current TH/s drops ≥ 20% below the miner's own rolling 10-minute average; fires tray popup + WARN log event; auto-clears when drop normalises
+- Sidebar nav now has 7 tabs: Dashboard, Miners, Alerts, Firmware, Groups, Settings, Logs
 
 ---
 
