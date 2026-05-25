@@ -63,11 +63,14 @@ QLabel#statLabel {
     font-size: 12px;
     font-weight: 600;
 }
-QLabel#statOnline  { color: #3fb950; border-color: #238636; }
-QLabel#statOffline { color: #f85149; border-color: #da3633; }
-QLabel#statWarning { color: #d29922; border-color: #9e6a03; }
-QLabel#statHash    { color: #c8a94b; border-color: #7a6820; }
-QLabel#statTime    { color: #8b949e; }
+QLabel#statOnline      { color: #3fb950; border-color: #238636; }
+QLabel#statOffline     { color: #f85149; border-color: #da3633; }
+QLabel#statWarning     { color: #d29922; border-color: #9e6a03; }
+QLabel#statHash        { color: #c8a94b; border-color: #7a6820; }
+QLabel#statPower       { color: #79c0ff; border-color: #1f6feb; }
+QLabel#statEfficiency  { color: #d2a8ff; border-color: #6e40c9; }
+QLabel#statBtc         { color: #ffa657; border-color: #d15c00; }
+QLabel#statTime        { color: #8b949e; }
 
 /* ── Content Pages ────────────────────────────────────────── */
 QWidget#page {

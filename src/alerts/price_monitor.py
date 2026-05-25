@@ -67,12 +67,11 @@ class PriceMonitor(QThread):
 
     def _poll(self):
         cfg = self.config
-        if not cfg.price_alerts_enabled:
-            return
 
-        coin_ids = self._get_coin_ids(cfg)
-        if not coin_ids:
-            return
+        # Always fetch BTC for the live price chip in the header
+        always_fetch = ["bitcoin"]
+        alert_ids = self._get_coin_ids(cfg) if cfg.price_alerts_enabled else []
+        coin_ids = list(dict.fromkeys(always_fetch + alert_ids))  # deduplicate, preserve order
 
         prices = _fetch_prices(coin_ids)
         if not prices:
@@ -87,7 +86,9 @@ class PriceMonitor(QThread):
                 continue
 
             self.price_updated.emit(coin_id, price, change_24h)
-            self._check_thresholds(cfg, coin_id, price, change_24h)
+
+            if cfg.price_alerts_enabled and coin_id in alert_ids:
+                self._check_thresholds(cfg, coin_id, price, change_24h)
 
     def _get_coin_ids(self, cfg) -> list[str]:
         ids = []

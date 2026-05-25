@@ -174,6 +174,15 @@ class MainWindow(QMainWindow):
 
         self._chip_hash = StatusChip("statHash")
         self._chip_hash.setText("0.0 TH/s")
+        self._chip_power = StatusChip("statPower")
+        self._chip_power.setText("0 W")
+        self._chip_power.setToolTip("Total fleet power draw")
+        self._chip_efficiency = StatusChip("statEfficiency")
+        self._chip_efficiency.setText("— W/TH")
+        self._chip_efficiency.setToolTip("Fleet efficiency (Watts per TH/s)")
+        self._chip_btc = StatusChip("statBtc")
+        self._chip_btc.setText("₿ —")
+        self._chip_btc.setToolTip("Live Bitcoin price (CoinGecko)")
         self._chip_online = StatusChip("statOnline")
         self._chip_online.setText("0 Online")
         self._chip_offline = StatusChip("statOffline")
@@ -181,7 +190,8 @@ class MainWindow(QMainWindow):
         self._chip_warn = StatusChip("statWarning")
         self._chip_warn.setText("0 Warnings")
 
-        for chip in [self._chip_hash, self._chip_online, self._chip_offline, self._chip_warn]:
+        for chip in [self._chip_hash, self._chip_power, self._chip_efficiency,
+                     self._chip_btc, self._chip_online, self._chip_offline, self._chip_warn]:
             chip.setObjectName(chip.objectName())
             layout.addWidget(chip)
 
@@ -236,7 +246,18 @@ class MainWindow(QMainWindow):
     def _setup_price_monitor(self):
         self._price_monitor = PriceMonitor(self.config, self)
         self._price_monitor.alert_triggered.connect(self._on_price_alert)
+        self._price_monitor.price_updated.connect(self._on_btc_price_update)
         self._price_monitor.start()
+
+    @pyqtSlot(str, float, float)
+    def _on_btc_price_update(self, coin_id: str, price: float, change_24h: float):
+        if coin_id != "bitcoin":
+            return
+        if price > 0:
+            sign = "▲" if change_24h >= 0 else "▼"
+            self._chip_btc.setText(f"₿ ${price:,.0f} {sign}{abs(change_24h):.1f}%")
+        else:
+            self._chip_btc.setText("₿ —")
 
     def _setup_tray(self):
         self._tray = QSystemTrayIcon(self)
@@ -298,7 +319,9 @@ class MainWindow(QMainWindow):
 
     def _update_chips(self):
         miners = list(self._miners.values())
-        total_ths = sum(m.best_hashrate() for m in miners if m.status != "offline")
+        active = [m for m in miners if m.status != "offline"]
+        total_ths = sum(m.best_hashrate() for m in active)
+        total_watts = sum(m.power_watts for m in active if m.power_watts > 0)
         online = sum(1 for m in miners if m.status == "online")
         warning = sum(1 for m in miners if m.status == "warning")
         offline = sum(1 for m in miners if m.status == "offline")
@@ -307,6 +330,19 @@ class MainWindow(QMainWindow):
             self._chip_hash.setText(f"{total_ths/1000:.2f} PH/s")
         else:
             self._chip_hash.setText(f"{total_ths:.1f} TH/s")
+
+        if total_watts >= 1000:
+            self._chip_power.setText(f"{total_watts/1000:.2f} kW")
+        elif total_watts > 0:
+            self._chip_power.setText(f"{total_watts:,.0f} W")
+        else:
+            self._chip_power.setText("— W")
+
+        if total_ths > 0 and total_watts > 0:
+            self._chip_efficiency.setText(f"{total_watts/total_ths:.1f} W/TH")
+        else:
+            self._chip_efficiency.setText("— W/TH")
+
         self._chip_online.setText(f"{online} Online")
         self._chip_offline.setText(f"{offline} Offline")
         self._chip_warn.setText(f"{warning} Warnings")
