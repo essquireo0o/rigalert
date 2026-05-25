@@ -62,34 +62,75 @@ class Database:
                     level TEXT,
                     message TEXT
                 );
+                CREATE TABLE IF NOT EXISTS groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    color TEXT DEFAULT '#30363d',
+                    notes TEXT DEFAULT ''
+                );
                 CREATE INDEX IF NOT EXISTS idx_readings_ip_ts ON readings(ip, ts);
                 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
             """)
-        # Migrate existing databases that predate the notes column
-        try:
-            with self._conn() as c:
-                c.execute("ALTER TABLE miners ADD COLUMN notes TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
+        # Migrate existing databases that predate new columns
+        for migration in [
+            "ALTER TABLE miners ADD COLUMN notes TEXT DEFAULT ''",
+            "ALTER TABLE miners ADD COLUMN group_id INTEGER DEFAULT NULL",
+        ]:
+            try:
+                with self._conn() as c:
+                    c.execute(migration)
+            except sqlite3.OperationalError:
+                pass  # Column already exists
 
     # ── Miners ────────────────────────────────────────────────────────────
 
     def upsert_miner(self, ip: str, port: int = 4028, name: str = "",
-                     min_ths: float = 0.0, notes: str = ""):
+                     min_ths: float = 0.0, notes: str = "", group_id: int = None):
         with self._conn() as c:
             c.execute("""
-                INSERT INTO miners(ip, port, name, min_ths, added_at, notes)
-                VALUES(?,?,?,?,?,?)
+                INSERT INTO miners(ip, port, name, min_ths, added_at, notes, group_id)
+                VALUES(?,?,?,?,?,?,?)
                 ON CONFLICT(ip) DO UPDATE SET
                     port=excluded.port,
                     name=excluded.name,
                     min_ths=excluded.min_ths,
-                    notes=CASE WHEN excluded.notes != '' THEN excluded.notes ELSE notes END
-            """, (ip, port, name, min_ths, datetime.now().isoformat(), notes))
+                    notes=CASE WHEN excluded.notes != '' THEN excluded.notes ELSE notes END,
+                    group_id=COALESCE(excluded.group_id, group_id)
+            """, (ip, port, name, min_ths, datetime.now().isoformat(), notes, group_id))
 
     def update_notes(self, ip: str, notes: str):
         with self._conn() as c:
             c.execute("UPDATE miners SET notes=? WHERE ip=?", (notes, ip))
+
+    def set_miner_group(self, ip: str, group_id: Optional[int]):
+        with self._conn() as c:
+            c.execute("UPDATE miners SET group_id=? WHERE ip=?", (group_id, ip))
+
+    # ── Groups ────────────────────────────────────────────────────────────
+
+    def get_groups(self) -> List[Dict[str, Any]]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM groups ORDER BY name").fetchall()
+            return [dict(r) for r in rows]
+
+    def create_group(self, name: str, color: str = "#30363d", notes: str = "") -> int:
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO groups(name, color, notes) VALUES(?,?,?)", (name, color, notes)
+            )
+            return cur.lastrowid
+
+    def update_group(self, group_id: int, name: str, color: str = "#30363d", notes: str = ""):
+        with self._conn() as c:
+            c.execute(
+                "UPDATE groups SET name=?, color=?, notes=? WHERE id=?",
+                (name, color, notes, group_id)
+            )
+
+    def delete_group(self, group_id: int):
+        with self._conn() as c:
+            c.execute("UPDATE miners SET group_id=NULL WHERE group_id=?", (group_id,))
+            c.execute("DELETE FROM groups WHERE id=?", (group_id,))
 
     def delete_miner(self, ip: str):
         with self._conn() as c:

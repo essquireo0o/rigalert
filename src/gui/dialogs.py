@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
-    QCheckBox, QDialogButtonBox, QDialog, QDoubleSpinBox, QFormLayout,
+    QCheckBox, QComboBox, QDialogButtonBox, QDialog, QDoubleSpinBox, QFormLayout,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QPlainTextEdit, QProgressBar, QPushButton, QRadioButton, QScrollArea, QSpinBox,
     QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -307,6 +307,12 @@ class AddMinerDialog(QDialog):
         self._notes.setFixedHeight(64)
         form.addRow("Notes:", self._notes)
 
+        self._group = QComboBox()
+        self._group.addItem("— No group —", None)
+        for g in self._main.get_db().get_groups():
+            self._group.addItem(g["name"], g["id"])
+        form.addRow("Group:", self._group)
+
         layout.addLayout(form)
 
         # Test connection
@@ -332,6 +338,11 @@ class AddMinerDialog(QDialog):
         self._name.setText(d.get("name", ""))
         self._min_ths.setValue(d.get("min_ths", self._main.get_config().default_min_ths))
         self._notes.setPlainText(d.get("notes", ""))
+        gid = d.get("group_id")
+        if gid is not None:
+            idx = self._group.findData(gid)
+            if idx >= 0:
+                self._group.setCurrentIndex(idx)
 
     def _test_connection(self):
         ip = self._ip.text().strip()
@@ -368,13 +379,14 @@ class AddMinerDialog(QDialog):
 
         threading.Thread(target=run, daemon=True).start()
 
-    def result_data(self) -> Tuple[str, int, str, float, str]:
+    def result_data(self) -> Tuple[str, int, str, float, str, object]:
         return (
             self._ip.text().strip(),
             self._port.value(),
             self._name.text().strip(),
             self._min_ths.value(),
             self._notes.toPlainText().strip(),
+            self._group.currentData(),
         )
 
 

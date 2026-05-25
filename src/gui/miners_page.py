@@ -7,7 +7,7 @@ from typing import Dict
 from PyQt6.QtCore import Qt, QSortFilterProxyModel, pyqtSlot
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+    QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QMenu, QPushButton, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget,
 )
@@ -132,11 +132,18 @@ class MinersPage(QWidget):
         title.setObjectName("sectionTitle")
         title_row.addWidget(title)
 
+        self._group_filter = QComboBox()
+        self._group_filter.setFixedWidth(140)
+        self._group_filter.addItem("All Groups", None)
+        self._group_filter.currentIndexChanged.connect(self._apply_filter)
+        title_row.addStretch()
+        title_row.addWidget(QLabel("Group:"))
+        title_row.addWidget(self._group_filter)
+
         self._search = QLineEdit()
         self._search.setPlaceholderText("Search by name or IP...")
         self._search.setFixedWidth(220)
-        self._search.textChanged.connect(self._filter)
-        title_row.addStretch()
+        self._search.textChanged.connect(self._apply_filter)
         title_row.addWidget(self._search)
 
         btn_add = QPushButton("+ Add Miner")
@@ -254,15 +261,36 @@ class MinersPage(QWidget):
                 if item:
                     self._rows[item.text()] = r
 
-    def _filter(self, text: str):
-        text = text.lower()
+    def _apply_filter(self):
+        text = self._search.text().lower()
+        group_id = self._group_filter.currentData()
+
+        # Build a map of ip → group_id from DB
+        miners_db = {m["ip"]: m.get("group_id") for m in self._main.get_db().get_miners()}
+
         for row in range(self._table.rowCount()):
             name_item = self._table.item(row, 1)
-            ip_item = self._table.item(row, 2)
-            visible = (not text or
-                       (name_item and text in name_item.text().lower()) or
-                       (ip_item and text in ip_item.text().lower()))
-            self._table.setRowHidden(row, not visible)
+            ip_item   = self._table.item(row, 2)
+            ip = ip_item.text() if ip_item else ""
+
+            text_match = (not text or
+                          (name_item and text in name_item.text().lower()) or
+                          text in ip.lower())
+            group_match = (group_id is None or miners_db.get(ip) == group_id)
+            self._table.setRowHidden(row, not (text_match and group_match))
+
+    def reload_groups(self):
+        """Refresh the group filter combo from DB."""
+        current = self._group_filter.currentData()
+        self._group_filter.blockSignals(True)
+        self._group_filter.clear()
+        self._group_filter.addItem("All Groups", None)
+        for g in self._main.get_db().get_groups():
+            self._group_filter.addItem(g["name"], g["id"])
+        # Restore selection
+        idx = self._group_filter.findData(current)
+        self._group_filter.setCurrentIndex(max(0, idx))
+        self._group_filter.blockSignals(False)
 
     def _context_menu(self, pos):
         row = self._table.rowAt(pos.y())
@@ -318,8 +346,8 @@ class MinersPage(QWidget):
         from .dialogs import AddMinerDialog
         dlg = AddMinerDialog(self._main, self)
         if dlg.exec():
-            ip, port, name, min_ths, notes = dlg.result_data()
-            self._main.add_miner_to_watch(ip, port, name, min_ths, notes)
+            ip, port, name, min_ths, notes, group_id = dlg.result_data()
+            self._main.add_miner_to_watch(ip, port, name, min_ths, notes, group_id)
 
     def _edit_miner(self, ip: str):
         from .dialogs import AddMinerDialog
@@ -327,8 +355,8 @@ class MinersPage(QWidget):
         existing = next((m for m in miners if m["ip"] == ip), None)
         dlg = AddMinerDialog(self._main, self, existing=existing)
         if dlg.exec():
-            new_ip, port, name, min_ths, notes = dlg.result_data()
-            self._main.add_miner_to_watch(new_ip, port, name, min_ths, notes)
+            new_ip, port, name, min_ths, notes, group_id = dlg.result_data()
+            self._main.add_miner_to_watch(new_ip, port, name, min_ths, notes, group_id)
 
     def _remove_miner(self, ip: str):
         from PyQt6.QtWidgets import QMessageBox

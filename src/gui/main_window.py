@@ -139,6 +139,7 @@ class MainWindow(QMainWindow):
             ("◉", "Miners"),
             ("⚑", "Alerts"),
             ("⚒", "Firmware"),
+            ("⊕", "Groups"),
             ("⚙", "Settings"),
             ("≡", "Logs"),
         ]
@@ -202,6 +203,7 @@ class MainWindow(QMainWindow):
         from .miners_page import MinersPage
         from .alerts_page import AlertsPage
         from .firmware_page import FirmwarePage
+        from .groups_page import GroupsPage
         from .settings_page import SettingsPage
         from .logs_page import LogsPage
 
@@ -209,11 +211,13 @@ class MainWindow(QMainWindow):
         self._miners_page = MinersPage(self)
         self._alerts_page = AlertsPage(self)
         self._firmware_page = FirmwarePage(self)
+        self._groups_page = GroupsPage(self)
         self._settings_page = SettingsPage(self)
         self._logs_page = LogsPage(self)
 
         for page in [self._dashboard_page, self._miners_page, self._alerts_page,
-                     self._firmware_page, self._settings_page, self._logs_page]:
+                     self._firmware_page, self._groups_page, self._settings_page,
+                     self._logs_page]:
             self._stack.addWidget(page)
 
     # ── Navigation ─────────────────────────────────────────────────────────
@@ -386,8 +390,9 @@ class MainWindow(QMainWindow):
         self._price_monitor.config = self.config
         self._update_title()
 
-    def add_miner_to_watch(self, ip: str, port: int, name: str, min_ths: float, notes: str = ""):
-        self.db.upsert_miner(ip, port, name, min_ths, notes)
+    def add_miner_to_watch(self, ip: str, port: int, name: str, min_ths: float,
+                           notes: str = "", group_id: int = None):
+        self.db.upsert_miner(ip, port, name, min_ths, notes, group_id)
         self._scanner.add_miner(ip, port, name, min_ths)
         self.config.saved_miners = self.db.get_miners()
         self.config.save()
