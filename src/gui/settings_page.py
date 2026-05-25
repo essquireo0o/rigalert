@@ -150,6 +150,27 @@ class SettingsPage(QWidget):
 
         layout.addWidget(gmail_box)
 
+        # ── Economics ──────────────────────────────────────────────
+        econ_box = QGroupBox("Economics — Profitability Calculator")
+        ef = QFormLayout(econ_box)
+        ef.setSpacing(10)
+        ef.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self._elec_cost = QDoubleSpinBox()
+        self._elec_cost.setRange(0, 10)
+        self._elec_cost.setDecimals(4)
+        self._elec_cost.setPrefix("$")
+        self._elec_cost.setSuffix(" / kWh")
+        self._elec_cost.setFixedWidth(160)
+        ef.addRow("Electricity Cost:", self._elec_cost)
+
+        self._profit_lbl = QLabel("— Save settings and wait for miner data to estimate profit")
+        self._profit_lbl.setStyleSheet("color:#3fb950;font-size:12px;background:transparent;")
+        self._profit_lbl.setWordWrap(True)
+        ef.addRow("Est. Daily Profit:", self._profit_lbl)
+
+        layout.addWidget(econ_box)
+
         # ── Save ───────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_save = QPushButton("Save Settings")
@@ -179,6 +200,7 @@ class SettingsPage(QWidget):
         self._gmail_user.setText(cfg.gmail_user)
         self._app_password.setText(cfg.gmail_app_password)
         self._alert_to.setText(cfg.alert_to_email)
+        self._elec_cost.setValue(cfg.electricity_cost_kwh)
 
     def _save(self):
         cfg = self._main.get_config()
@@ -193,8 +215,10 @@ class SettingsPage(QWidget):
         cfg.gmail_user = self._gmail_user.text().strip()
         cfg.gmail_app_password = self._app_password.text().strip()
         cfg.alert_to_email = self._alert_to.text().strip()
+        cfg.electricity_cost_kwh = self._elec_cost.value()
         cfg.save()
         self._main.reload_config()
+        self._refresh_profit()
         self._saved_lbl.setText("✓ Saved")
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, lambda: self._saved_lbl.setText(""))
@@ -235,3 +259,41 @@ class SettingsPage(QWidget):
         else:
             self._test_lbl.setText(f"✗ {msg}")
             self._test_lbl.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
+
+    def _refresh_profit(self):
+        """Update profitability estimate using current miner data and BTC price from dashboard."""
+        from .dashboard_page import _BTC_PER_TH_PER_DAY
+        cfg = self._main.get_config()
+        miners = list(self._main.get_miners().values())
+        active = [m for m in miners if m.status != "offline"]
+        total_ths = sum(m.best_hashrate() for m in active)
+        total_watts = sum(m.power_watts for m in active if m.power_watts > 0)
+        btc_price = self._main._dashboard_page._btc_price
+        cost_kwh = cfg.electricity_cost_kwh
+
+        if total_ths <= 0:
+            self._profit_lbl.setText("— No miner data yet")
+            return
+
+        daily_btc = total_ths * _BTC_PER_TH_PER_DAY
+        daily_revenue = daily_btc * btc_price if btc_price > 0 else 0
+        daily_kwh = total_watts / 1000 * 24
+        daily_elec_cost = daily_kwh * cost_kwh
+        daily_profit = daily_revenue - daily_elec_cost
+
+        parts = []
+        if btc_price > 0:
+            parts.append(f"Revenue: ${daily_revenue:,.2f}/day")
+        parts.append(f"Power cost: ${daily_elec_cost:,.2f}/day  ({daily_kwh:.1f} kWh @ ${cost_kwh:.4f}/kWh)")
+        if btc_price > 0:
+            color = "#3fb950" if daily_profit >= 0 else "#f85149"
+            profit_str = f"${daily_profit:+,.2f}/day"
+            self._profit_lbl.setText("  ·  ".join(parts) + f"  →  {profit_str}")
+            self._profit_lbl.setStyleSheet(f"color:{color};font-size:12px;background:transparent;")
+        else:
+            self._profit_lbl.setText("  ·  ".join(parts) + "  (BTC price not yet loaded)")
+            self._profit_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+
+    def update_profit_estimate(self):
+        """Called externally (e.g., on BTC price update) to refresh the profit display."""
+        self._refresh_profit()

@@ -51,6 +51,9 @@ class AppConfig:
     # Saved miners (list of dicts: ip, port, name, min_ths)
     saved_miners: list = None
 
+    # Economics
+    electricity_cost_kwh: float = 0.07   # USD per kWh
+
     # Crypto price alerts
     price_alerts_enabled: bool = False
     btc_alert_enabled: bool = True

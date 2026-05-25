@@ -271,6 +271,7 @@ class MainWindow(QMainWindow):
             sign = "▲" if change_24h >= 0 else "▼"
             self._chip_btc.setText(f"₿ ${price:,.0f} {sign}{abs(change_24h):.1f}%")
             self._dashboard_page.set_btc_price(price)
+            self._settings_page.update_profit_estimate()
         else:
             self._chip_btc.setText("₿ —")
 
