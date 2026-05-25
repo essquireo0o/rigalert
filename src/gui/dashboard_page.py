@@ -78,12 +78,36 @@ class MinerCard(QFrame):
         ip_lbl.setToolTip(f"Click to open http://{m.ip} in browser")
         layout.addWidget(ip_lbl)
 
-        # Model name
-        if m.model:
-            mdl = QLabel(m.model)
-            mdl.setStyleSheet(f"color:{BITCOIN_ORANGE};font-size:11px;font-weight:600;background:transparent;")
-            mdl.setWordWrap(True)
-            layout.addWidget(mdl)
+        # Model name + firmware badge
+        if m.model or m.firmware:
+            model_row = QHBoxLayout()
+            model_row.setSpacing(6)
+            if m.model:
+                mdl = QLabel(m.model)
+                mdl.setStyleSheet(f"color:{BITCOIN_ORANGE};font-size:11px;font-weight:600;background:transparent;")
+                mdl.setWordWrap(False)
+                model_row.addWidget(mdl)
+            if m.firmware:
+                fw_lower = m.firmware.lower()
+                if "vnish" in fw_lower:
+                    fw_label, fw_color = "VNish", "#58a6ff"
+                elif "braiins" in fw_lower or "bosminer" in fw_lower or "bos+" in fw_lower:
+                    fw_label, fw_color = "Braiins OS", "#3fb950"
+                elif fw_lower:
+                    fw_label, fw_color = "Stock", "#8b949e"
+                else:
+                    fw_label, fw_color = None, None
+                if fw_label:
+                    fw_badge = QLabel(fw_label)
+                    fw_badge.setStyleSheet(
+                        f"color:{fw_color};font-size:9px;font-weight:700;"
+                        f"border:1px solid {fw_color};border-radius:4px;"
+                        f"padding:1px 5px;background:transparent;"
+                    )
+                    fw_badge.setToolTip(m.firmware)
+                    model_row.addWidget(fw_badge)
+            model_row.addStretch()
+            layout.addLayout(model_row)
 
         # Separator
         sep = QFrame()
