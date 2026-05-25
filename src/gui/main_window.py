@@ -1,7 +1,7 @@
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QFont, QIcon, QPixmap
@@ -49,6 +49,10 @@ class MainWindow(QMainWindow):
         self.db = Database()
 
         self._miners: Dict[str, MinerData] = {}
+        # {ip: [(epoch_seconds, temp_c), ...]} — rolling 5-minute window
+        self._temp_history: Dict[str, List[Tuple[float, float]]] = {}
+        # IPs currently in thermal-runaway alert state (cleared when temp drops)
+        self._thermal_alerted: set = set()
 
         self._setup_ui()
         self._setup_scanner()
@@ -295,10 +299,47 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object)
     def _on_miner_updated(self, miner: MinerData):
         self._miners[miner.ip] = miner
+        self._check_thermal_runaway(miner)
         self._dashboard_page.update_miner(miner)
         self._miners_page.update_miner(miner)
         self._firmware_page.update_miner(miner)
         self._update_chips()
+
+    def _check_thermal_runaway(self, miner: MinerData):
+        temp = miner.temp_chip_max or miner.temp_outlet or miner.temp_inlet
+        if temp <= 0:
+            self._thermal_alerted.discard(miner.ip)
+            return
+
+        now = datetime.now().timestamp()
+        history = self._temp_history.setdefault(miner.ip, [])
+        history.append((now, temp))
+        # Keep only the last 5 minutes of readings
+        cutoff = now - 300
+        self._temp_history[miner.ip] = [(t, v) for t, v in history if t >= cutoff]
+
+        # Compare against reading from ~60 seconds ago
+        window_start = now - 60
+        old_readings = [(t, v) for t, v in self._temp_history[miner.ip] if t <= window_start]
+        if not old_readings:
+            return
+
+        oldest_temp = old_readings[0][1]
+        rise = temp - oldest_temp
+
+        if rise >= 5.0 and temp >= 70.0:
+            if miner.ip not in self._thermal_alerted:
+                self._thermal_alerted.add(miner.ip)
+                name = miner.display_name
+                msg = (f"Thermal runaway: {name} temp rose {rise:.1f}°C in 60s "
+                       f"(now {temp:.0f}°C)")
+                self.db.log_event(miner.ip, "CRIT", msg)
+                self._logs_page.add_event(miner.ip, "CRIT", msg)
+                self._show_popup(f"THERMAL ALERT\n{msg}")
+                self._status_msg.setText(f"⚠ {msg}")
+        elif rise < 2.0:
+            # Temp stabilised — clear the alert so it can re-trigger if it spikes again
+            self._thermal_alerted.discard(miner.ip)
 
     @pyqtSlot(str)
     def _on_miner_offline(self, ip: str):
