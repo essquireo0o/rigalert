@@ -154,6 +154,19 @@ class CGMinerAPI:
 
         return True, f"{added} pool(s) set successfully"
 
+    def restart(self) -> tuple:
+        """Send CGMiner 'restart' command. Returns (success, message)."""
+        result = self._send("restart")
+        if result is None:
+            # CGMiner closes connection on restart — a None response can still mean success
+            return True, "Restart command sent (connection closed by miner, as expected)"
+        status = result.get("STATUS", [{}])
+        code = status[0].get("STATUS", "").upper() if status else ""
+        msg = status[0].get("Msg", "") if status else ""
+        if code in ("S", "I"):
+            return True, f"Restart OK: {msg}"
+        return False, f"Restart response: {result}"
+
 
 def parse_miner_data(ip: str, port: int, raw: Dict[str, Any],
                      existing: Optional[MinerData] = None) -> MinerData:

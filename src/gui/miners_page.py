@@ -337,6 +337,8 @@ class MinersPage(QWidget):
         menu.addAction("Change Pool...", lambda: self._change_pool(ip))
         menu.addAction("Edit Miner", lambda: self._edit_miner(ip))
         menu.addSeparator()
+        menu.addAction("Restart Miner (CGMiner)...", lambda: self._restart_miner(ip))
+        menu.addSeparator()
         menu.addAction("Remove Miner", lambda: self._remove_miner(ip))
         menu.exec(self._table.viewport().mapToGlobal(pos))
 
@@ -387,6 +389,45 @@ class MinersPage(QWidget):
         if dlg.exec():
             new_ip, port, name, min_ths, notes, group_id = dlg.result_data()
             self._main.add_miner_to_watch(new_ip, port, name, min_ths, notes, group_id)
+
+    def _restart_miner(self, ip: str):
+        name_item = None
+        for row in range(self._table.rowCount()):
+            ip_item = self._table.item(row, 2)
+            if ip_item and ip_item.text() == ip:
+                name_item = self._table.item(row, 1)
+                break
+        name = name_item.text() if name_item else ip
+
+        reply = QMessageBox.warning(
+            self, "Restart Miner",
+            f"Send RESTART command to {name} ({ip})?\n\n"
+            f"This will stop and restart the CGMiner process on the miner.\n"
+            f"The miner will go offline briefly then reconnect.\n\n"
+            f"⚠ This does NOT change any settings, pools, or firmware.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        import threading
+        def _do_restart():
+            from ..core.cgminer_api import CGMinerAPI
+            miner_data = self._main.get_miners().get(ip)
+            port = miner_data.port if miner_data else 4028
+            api = CGMinerAPI(ip, port, timeout=8.0)
+            ok, msg = api.restart()
+            level = "INFO" if ok else "WARN"
+            log_msg = f"Restart {'sent' if ok else 'failed'} for {name} ({ip}): {msg}"
+            self._main.db.log_event(ip, level, log_msg)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._main._logs_page.add_event(ip, level, log_msg))
+            from PyQt6.QtCore import QTimer
+            result_text = f"{'✓' if ok else '✗'} {name}: {msg}"
+            QTimer.singleShot(0, lambda: self._main._status_msg.setText(result_text))
+
+        threading.Thread(target=_do_restart, daemon=True).start()
+        self._main._status_msg.setText(f"Sending restart to {name} ({ip})...")
 
     def _remove_miner(self, ip: str):
         reply = QMessageBox.question(
