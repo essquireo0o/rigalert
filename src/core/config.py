@@ -51,9 +51,19 @@ class AppConfig:
     # Saved miners (list of dicts: ip, port, name, min_ths)
     saved_miners: list = None
 
+    # Crypto price alerts
+    price_alerts_enabled: bool = False
+    btc_alert_enabled: bool = True
+    btc_alert_above: float = 0.0      # USD, 0 = disabled
+    btc_alert_below: float = 0.0      # USD, 0 = disabled
+    btc_alert_pct_move: float = 0.0   # 24h %, 0 = disabled
+    altcoin_alerts: list = None        # [{id, symbol, above, below, pct_move}]
+
     def __post_init__(self):
         if self.saved_miners is None:
             self.saved_miners = []
+        if self.altcoin_alerts is None:
+            self.altcoin_alerts = []
 
     def save(self, path: str = _CFG_PATH):
         with open(path, "w") as f:

@@ -2,7 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QButtonGroup, QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QMessageBox, QPushButton, QRadioButton,
-    QScrollArea, QSpinBox, QVBoxLayout, QWidget,
+    QScrollArea, QSpinBox, QVBoxLayout, QWidget, QLineEdit,
 )
 
 from .theme import BITCOIN_ORANGE
@@ -166,6 +166,89 @@ class AlertsPage(QWidget):
 
         outer.addWidget(delivery_box)
 
+        # ── Crypto Price Alerts ────────────────────────────────────────────
+        price_box = QGroupBox("Crypto Price Alerts  (polls CoinGecko every 5 min — no API key needed)")
+        pf = QVBoxLayout(price_box)
+        pf.setSpacing(10)
+
+        self._chk_price = QCheckBox("Enable crypto price alerts")
+        self._chk_price.setStyleSheet("color:#e6edf3;font-weight:600;")
+        pf.addWidget(self._chk_price)
+
+        # BTC thresholds
+        btc_box = QGroupBox("Bitcoin (BTC)")
+        btc_box.setStyleSheet(
+            "QGroupBox{border:1px solid #21262d;border-radius:4px;margin-top:8px;"
+            "padding:8px;background:#0d1117;}"
+            "QGroupBox::title{subcontrol-origin:margin;left:6px;padding:0 4px;"
+            "background:#0d1117;color:#8b949e;font-size:11px;}"
+        )
+        bf = QFormLayout(btc_box)
+        bf.setSpacing(8)
+        bf.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self._btc_above = QDoubleSpinBox()
+        self._btc_above.setRange(0, 10_000_000)
+        self._btc_above.setDecimals(0)
+        self._btc_above.setPrefix("$")
+        self._btc_above.setFixedWidth(140)
+        self._btc_above.setSpecialValueText("Disabled")
+        bf.addRow("Alert when BTC above:", self._btc_above)
+
+        self._btc_below = QDoubleSpinBox()
+        self._btc_below.setRange(0, 10_000_000)
+        self._btc_below.setDecimals(0)
+        self._btc_below.setPrefix("$")
+        self._btc_below.setFixedWidth(140)
+        self._btc_below.setSpecialValueText("Disabled")
+        bf.addRow("Alert when BTC below:", self._btc_below)
+
+        self._btc_pct = QDoubleSpinBox()
+        self._btc_pct.setRange(0, 100)
+        self._btc_pct.setDecimals(1)
+        self._btc_pct.setSuffix("% in 24h")
+        self._btc_pct.setFixedWidth(140)
+        self._btc_pct.setSpecialValueText("Disabled")
+        bf.addRow("Alert on ±% move:", self._btc_pct)
+
+        pf.addWidget(btc_box)
+
+        # Altcoin row (simple: coin id + above/below)
+        alt_box = QGroupBox("Altcoins (one per line: coin_id,above_usd,below_usd  e.g. ethereum,4000,2000)")
+        alt_box.setStyleSheet(
+            "QGroupBox{border:1px solid #21262d;border-radius:4px;margin-top:8px;"
+            "padding:8px;background:#0d1117;}"
+            "QGroupBox::title{subcontrol-origin:margin;left:6px;padding:0 4px;"
+            "background:#0d1117;color:#8b949e;font-size:10px;}"
+        )
+        af = QVBoxLayout(alt_box)
+        self._altcoin_text = QLineEdit()
+        self._altcoin_text.setPlaceholderText(
+            "e.g.  ethereum,4000,2000   or   solana,200,100"
+        )
+        af.addWidget(self._altcoin_text)
+        coin_hint = QLabel(
+            "Use CoinGecko coin IDs: bitcoin, ethereum, solana, cardano, etc.  "
+            "Leave blank to disable altcoin alerts."
+        )
+        coin_hint.setStyleSheet("color:#8b949e;font-size:11px;background:transparent;")
+        coin_hint.setWordWrap(True)
+        af.addWidget(coin_hint)
+        pf.addWidget(alt_box)
+
+        # Test price check button
+        test_price_row = QHBoxLayout()
+        btn_price_test = QPushButton("Check Prices Now")
+        btn_price_test.setFixedWidth(160)
+        btn_price_test.clicked.connect(self._check_prices_now)
+        self._price_result = QLabel("")
+        self._price_result.setStyleSheet("font-size:12px;background:transparent;")
+        test_price_row.addWidget(btn_price_test)
+        test_price_row.addWidget(self._price_result, 1)
+        pf.addLayout(test_price_row)
+
+        outer.addWidget(price_box)
+
         # ── Save ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_save = QPushButton("Save Alert Settings")
@@ -212,6 +295,17 @@ class AlertsPage(QWidget):
         self._chk_email.setChecked(cfg.enable_email_alerts)
         self._chk_popup.setChecked(cfg.enable_popup_alerts)
 
+        # Price alerts
+        self._chk_price.setChecked(cfg.price_alerts_enabled)
+        self._btc_above.setValue(cfg.btc_alert_above or 0)
+        self._btc_below.setValue(cfg.btc_alert_below or 0)
+        self._btc_pct.setValue(cfg.btc_alert_pct_move or 0)
+        alt_lines = []
+        for alt in (cfg.altcoin_alerts or []):
+            parts = [alt.get("id", ""), str(alt.get("above", 0)), str(alt.get("below", 0))]
+            alt_lines.append(",".join(parts))
+        self._altcoin_text.setText("  ".join(alt_lines))
+
     def _save(self):
         cfg = self._main.get_config()
 
@@ -236,11 +330,59 @@ class AlertsPage(QWidget):
         cfg.enable_email_alerts   = self._chk_email.isChecked()
         cfg.enable_popup_alerts   = self._chk_popup.isChecked()
 
+        # Price alerts
+        cfg.price_alerts_enabled = self._chk_price.isChecked()
+        cfg.btc_alert_above      = self._btc_above.value()
+        cfg.btc_alert_below      = self._btc_below.value()
+        cfg.btc_alert_pct_move   = self._btc_pct.value()
+
+        alts = []
+        for token in self._altcoin_text.text().replace(";", " ").split():
+            parts = [p.strip() for p in token.split(",")]
+            if parts and parts[0]:
+                try:
+                    alts.append({
+                        "id":       parts[0],
+                        "symbol":   parts[0].upper(),
+                        "above":    float(parts[1]) if len(parts) > 1 else 0,
+                        "below":    float(parts[2]) if len(parts) > 2 else 0,
+                        "pct_move": float(parts[3]) if len(parts) > 3 else 0,
+                    })
+                except ValueError:
+                    pass
+        cfg.altcoin_alerts = alts
+
         cfg.save()
         self._main.reload_config()
         self._saved_lbl.setText("✓ Saved")
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(3000, lambda: self._saved_lbl.setText(""))
+
+    def _check_prices_now(self):
+        self._price_result.setText("Fetching...")
+        self._price_result.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        from ..alerts.price_monitor import _fetch_prices
+        import threading
+
+        def run():
+            data = _fetch_prices(["bitcoin"])
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._show_price_result(data))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _show_price_result(self, data: dict):
+        btc = data.get("bitcoin", {})
+        price = btc.get("usd", 0)
+        change = btc.get("usd_24h_change", 0) or 0
+        if price:
+            direction = "▲" if change >= 0 else "▼"
+            self._price_result.setText(f"BTC: ${price:,.0f}  {direction}{abs(change):.1f}% 24h")
+            color = "#3fb950" if change >= 0 else "#f85149"
+            self._price_result.setStyleSheet(f"color:{color};font-size:12px;background:transparent;")
+        else:
+            self._price_result.setText("Could not fetch price — check internet connection")
+            self._price_result.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
 
     def _send_test(self):
         cfg = self._main.get_config()

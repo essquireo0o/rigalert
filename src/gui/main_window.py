@@ -16,6 +16,7 @@ from ..core.database import Database
 from ..core.miner import MinerData
 from ..core.scanner import MinerScanner
 from ..alerts.scheduler import AlertScheduler
+from ..alerts.price_monitor import PriceMonitor
 from .theme import DARK_QSS, STATUS_COLORS, BITCOIN_ORANGE
 
 
@@ -52,6 +53,7 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._setup_scanner()
         self._setup_alert_scheduler()
+        self._setup_price_monitor()
         self._setup_tray()
         self._setup_refresh_timer()
 
@@ -231,6 +233,11 @@ class MainWindow(QMainWindow):
         self._scheduler.popup_requested.connect(self._show_popup)
         self._scheduler.start()
 
+    def _setup_price_monitor(self):
+        self._price_monitor = PriceMonitor(self.config, self)
+        self._price_monitor.alert_triggered.connect(self._on_price_alert)
+        self._price_monitor.start()
+
     def _setup_tray(self):
         self._tray = QSystemTrayIcon(self)
         self._tray.setToolTip("RigAlert™ by ING Mining — Miner Monitor")
@@ -340,6 +347,7 @@ class MainWindow(QMainWindow):
         self.config = AppConfig.load()
         self._scanner.config = self.config
         self._scheduler.config = self.config
+        self._price_monitor.config = self.config
         self._update_title()
 
     def add_miner_to_watch(self, ip: str, port: int, name: str, min_ths: float):
@@ -355,6 +363,13 @@ class MainWindow(QMainWindow):
         self._dashboard_page.remove_miner(ip)
         self._miners_page.remove_miner(ip)
         self._firmware_page.remove_miner(ip)
+
+    @pyqtSlot(str, str)
+    def _on_price_alert(self, coin_id: str, message: str):
+        self.db.log_event("price", "WARN", message)
+        self._logs_page.add_event("price", "WARN", message)
+        self._show_popup(f"Price Alert\n{message}")
+        self._status_msg.setText(f"Price alert: {message}")
 
     def closeEvent(self, event):
         self.hide()
