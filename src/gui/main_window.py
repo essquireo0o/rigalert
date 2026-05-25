@@ -136,6 +136,7 @@ class MainWindow(QMainWindow):
             ("⊞", "Dashboard"),
             ("◉", "Miners"),
             ("⚑", "Alerts"),
+            ("⚒", "Firmware"),
             ("⚙", "Settings"),
             ("≡", "Logs"),
         ]
@@ -188,17 +189,19 @@ class MainWindow(QMainWindow):
         from .dashboard_page import DashboardPage
         from .miners_page import MinersPage
         from .alerts_page import AlertsPage
+        from .firmware_page import FirmwarePage
         from .settings_page import SettingsPage
         from .logs_page import LogsPage
 
         self._dashboard_page = DashboardPage(self)
         self._miners_page = MinersPage(self)
         self._alerts_page = AlertsPage(self)
+        self._firmware_page = FirmwarePage(self)
         self._settings_page = SettingsPage(self)
         self._logs_page = LogsPage(self)
 
         for page in [self._dashboard_page, self._miners_page, self._alerts_page,
-                     self._settings_page, self._logs_page]:
+                     self._firmware_page, self._settings_page, self._logs_page]:
             self._stack.addWidget(page)
 
     # ── Navigation ─────────────────────────────────────────────────────────
@@ -261,6 +264,7 @@ class MainWindow(QMainWindow):
         self._miners[miner.ip] = miner
         self._dashboard_page.update_miner(miner)
         self._miners_page.update_miner(miner)
+        self._firmware_page.update_miner(miner)
         self._update_chips()
 
     @pyqtSlot(str)
@@ -350,6 +354,7 @@ class MainWindow(QMainWindow):
         self._miners.pop(ip, None)
         self._dashboard_page.remove_miner(ip)
         self._miners_page.remove_miner(ip)
+        self._firmware_page.remove_miner(ip)
 
     def closeEvent(self, event):
         self.hide()
