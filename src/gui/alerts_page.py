@@ -1,9 +1,11 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QButtonGroup, QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QMessageBox, QPushButton, QRadioButton,
-    QScrollArea, QSpinBox, QVBoxLayout, QWidget, QLineEdit,
+    QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
+    QPushButton, QRadioButton, QScrollArea, QSpinBox, QVBoxLayout,
+    QWidget, QLineEdit,
 )
+from PyQt6.QtGui import QColor
 
 from .theme import BITCOIN_ORANGE
 
@@ -44,6 +46,47 @@ class AlertsPage(QWidget):
         sub.setWordWrap(True)
         sub.setStyleSheet(f"color:#8b949e;font-size:12px;background:transparent;")
         outer.addWidget(sub)
+
+        # ── Active Alerts ──────────────────────────────────────────────────
+        active_box = QGroupBox("Active Alerts")
+        active_box.setStyleSheet(
+            "QGroupBox{border:2px solid #f85149;border-radius:8px;"
+            "margin-top:14px;padding:14px;background:#161b22;}"
+            "QGroupBox::title{color:#f85149;font-size:11px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:1px;subcontrol-origin:margin;"
+            "left:10px;padding:0 6px;background:#0d1117;}"
+        )
+        av = QVBoxLayout(active_box)
+        av.setSpacing(8)
+
+        self._active_list = QListWidget()
+        self._active_list.setFixedHeight(120)
+        self._active_list.setStyleSheet(
+            "QListWidget{background:#0d1117;border:1px solid #30363d;border-radius:4px;}"
+            "QListWidget::item{padding:4px 8px;border-bottom:1px solid #21262d;color:#f85149;}"
+        )
+        av.addWidget(self._active_list)
+
+        btn_row_active = QHBoxLayout()
+        self._btn_snooze = QPushButton("Snooze Selected (1hr)")
+        self._btn_snooze.setFixedHeight(28)
+        self._btn_snooze.setEnabled(False)
+        self._btn_snooze.clicked.connect(self._snooze_selected)
+        self._btn_dismiss = QPushButton("Dismiss Selected")
+        self._btn_dismiss.setFixedHeight(28)
+        self._btn_dismiss.setEnabled(False)
+        self._btn_dismiss.clicked.connect(self._dismiss_selected)
+        btn_dismiss_all = QPushButton("Dismiss All")
+        btn_dismiss_all.setFixedHeight(28)
+        btn_dismiss_all.clicked.connect(self._dismiss_all)
+        btn_row_active.addWidget(self._btn_snooze)
+        btn_row_active.addWidget(self._btn_dismiss)
+        btn_row_active.addWidget(btn_dismiss_all)
+        btn_row_active.addStretch()
+        av.addLayout(btn_row_active)
+
+        self._active_list.currentItemChanged.connect(self._on_active_item_changed)
+        outer.addWidget(active_box)
 
         # ── Email Schedule ─────────────────────────────────────────────────
         sched_box = QGroupBox("Email Schedule  (one summary email per interval)")
@@ -383,6 +426,69 @@ class AlertsPage(QWidget):
         else:
             self._price_result.setText("Could not fetch price — check internet connection")
             self._price_result.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
+
+    def refresh_active_alerts(self, miners):
+        """Called by MainWindow on each miner update to refresh the active alerts panel."""
+        self._active_list.clear()
+        cfg = self._main.get_config()
+        for m in miners:
+            issues = []
+            if m.status == "offline":
+                issues.append(("OFFLINE", f"offline"))
+            elif m.status == "warning":
+                temp = m.temp_chip_max or m.temp_outlet
+                if temp >= cfg.high_temp_c > 0:
+                    issues.append(("CRIT TEMP", f"{temp:.0f}°C"))
+                elif temp >= cfg.warn_temp_c > 0:
+                    issues.append(("HIGH TEMP", f"{temp:.0f}°C"))
+                if m.best_hashrate() < cfg.default_min_ths > 0:
+                    issues.append(("LOW HASH", f"{m.best_hashrate():.1f} TH/s"))
+                if m.hw_error_rate >= cfg.max_hw_error_rate > 0:
+                    issues.append(("HW ERR", f"{m.hw_error_rate:.2f}%"))
+            for kind, detail in issues:
+                item = QListWidgetItem(f"  {m.display_name} ({m.ip})  —  {kind}: {detail}")
+                item.setData(Qt.ItemDataRole.UserRole, m.ip)
+                item.setForeground(QColor("#f85149" if kind in ("OFFLINE", "CRIT TEMP") else "#d29922"))
+                self._active_list.addItem(item)
+        if self._active_list.count() == 0:
+            ok = QListWidgetItem("  No active alerts — fleet is healthy")
+            ok.setForeground(QColor("#3fb950"))
+            self._active_list.addItem(ok)
+
+    def _on_active_item_changed(self, current, _prev):
+        has = current is not None and current.data(Qt.ItemDataRole.UserRole) is not None
+        self._btn_snooze.setEnabled(has)
+        self._btn_dismiss.setEnabled(has)
+
+    def _snooze_selected(self):
+        cur = self._active_list.currentItem()
+        if not cur:
+            return
+        ip = cur.data(Qt.ItemDataRole.UserRole)
+        if ip:
+            self._main.snooze_miner(ip, 60)
+            self._active_list.takeItem(self._active_list.row(cur))
+
+    def _dismiss_selected(self):
+        cur = self._active_list.currentItem()
+        if not cur:
+            return
+        ip = cur.data(Qt.ItemDataRole.UserRole)
+        if ip:
+            self._main.dismiss_miner_alerts(ip)
+            self._active_list.takeItem(self._active_list.row(cur))
+
+    def _dismiss_all(self):
+        for row in range(self._active_list.count()):
+            item = self._active_list.item(row)
+            if item:
+                ip = item.data(Qt.ItemDataRole.UserRole)
+                if ip:
+                    self._main.dismiss_miner_alerts(ip)
+        self._active_list.clear()
+        ok = QListWidgetItem("  No active alerts — fleet is healthy")
+        ok.setForeground(QColor("#3fb950"))
+        self._active_list.addItem(ok)
 
     def _send_test(self):
         cfg = self._main.get_config()

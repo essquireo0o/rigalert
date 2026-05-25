@@ -57,6 +57,8 @@ class MainWindow(QMainWindow):
         self._hash_history: Dict[str, List[Tuple[float, float]]] = {}
         # IPs currently in hash-drop alert state
         self._hash_alerted: set = set()
+        # {ip: snoozed_until_epoch} — tray popups suppressed while epoch > now
+        self._snoozed: Dict[str, float] = {}
 
         self._setup_ui()
         self._setup_scanner()
@@ -308,6 +310,7 @@ class MainWindow(QMainWindow):
         self._dashboard_page.update_miner(miner)
         self._miners_page.update_miner(miner)
         self._firmware_page.update_miner(miner)
+        self._alerts_page.refresh_active_alerts(list(self._miners.values()))
         self._update_chips()
 
     def _check_hash_instability(self, miner: MinerData):
@@ -339,7 +342,7 @@ class MainWindow(QMainWindow):
                    f"({drop_pct:.0f}% below 10-min avg of {avg:.1f} TH/s)")
             self.db.log_event(miner.ip, "WARN", msg)
             self._logs_page.add_event(miner.ip, "WARN", msg)
-            self._show_popup(f"HASH DROP\n{msg}")
+            self._show_popup(f"HASH DROP\n{msg}", ip=miner.ip)
             self._status_msg.setText(f"⚠ {msg}")
         elif drop_pct < 10.0:
             self._hash_alerted.discard(miner.ip)
@@ -374,7 +377,7 @@ class MainWindow(QMainWindow):
                        f"(now {temp:.0f}°C)")
                 self.db.log_event(miner.ip, "CRIT", msg)
                 self._logs_page.add_event(miner.ip, "CRIT", msg)
-                self._show_popup(f"THERMAL ALERT\n{msg}")
+                self._show_popup(f"THERMAL ALERT\n{msg}", ip=miner.ip)
                 self._status_msg.setText(f"⚠ {msg}")
         elif rise < 2.0:
             # Temp stabilised — clear the alert so it can re-trigger if it spikes again
@@ -433,10 +436,27 @@ class MainWindow(QMainWindow):
         self._chip_warn.setText(f"{warning} Warnings")
 
     @pyqtSlot(str)
-    def _show_popup(self, text: str):
+    def _show_popup(self, text: str, ip: str = ""):
+        if ip and self._is_snoozed(ip):
+            return
         if self._tray.isVisible():
             self._tray.showMessage("RigAlert™ by ING Mining Alert", text,
                                    QSystemTrayIcon.MessageIcon.Warning, 8000)
+
+    def _is_snoozed(self, ip: str) -> bool:
+        until = self._snoozed.get(ip, 0)
+        if until and datetime.now().timestamp() < until:
+            return True
+        self._snoozed.pop(ip, None)
+        return False
+
+    def snooze_miner(self, ip: str, minutes: int = 60):
+        import time
+        self._snoozed[ip] = time.time() + minutes * 60
+
+    def dismiss_miner_alerts(self, ip: str):
+        self._thermal_alerted.discard(ip)
+        self._hash_alerted.discard(ip)
 
     # ── Public API used by pages ───────────────────────────────────────────
 
