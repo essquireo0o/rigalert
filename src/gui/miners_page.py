@@ -7,9 +7,9 @@ from typing import Dict
 from PyQt6.QtCore import Qt, QSortFilterProxyModel, pyqtSlot
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMenu, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget,
+    QAbstractItemView, QComboBox, QFileDialog, QHBoxLayout, QHeaderView,
+    QLabel, QLineEdit, QMenu, QMessageBox, QPushButton, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ..core.miner import MinerData
@@ -164,17 +164,47 @@ class MinersPage(QWidget):
 
         layout.addLayout(title_row)
 
+        # Batch action bar (shown when multiple rows selected)
+        batch_row = QHBoxLayout()
+        self._batch_lbl = QLabel("Select rows for batch actions:")
+        self._batch_lbl.setStyleSheet("color:#8b949e;font-size:11px;background:transparent;")
+        batch_row.addWidget(self._batch_lbl)
+
+        self._btn_batch_group = QPushButton("Assign Group")
+        self._btn_batch_group.setFixedHeight(26)
+        self._btn_batch_group.setEnabled(False)
+        self._btn_batch_group.clicked.connect(self._batch_assign_group)
+        batch_row.addWidget(self._btn_batch_group)
+
+        self._btn_batch_export = QPushButton("Export CSV")
+        self._btn_batch_export.setFixedHeight(26)
+        self._btn_batch_export.setEnabled(False)
+        self._btn_batch_export.clicked.connect(self._batch_export_csv)
+        batch_row.addWidget(self._btn_batch_export)
+
+        self._btn_batch_remove = QPushButton("Remove Selected")
+        self._btn_batch_remove.setObjectName("btnDanger")
+        self._btn_batch_remove.setFixedHeight(26)
+        self._btn_batch_remove.setEnabled(False)
+        self._btn_batch_remove.clicked.connect(self._batch_remove)
+        batch_row.addWidget(self._btn_batch_remove)
+
+        batch_row.addStretch()
+        layout.addLayout(batch_row)
+
         # Table
         self._table = QTableWidget(0, len(COLS))
         self._table.setHorizontalHeaderLabels(COLS)
         self._table.verticalHeader().setVisible(False)
         self._table.setAlternatingRowColors(True)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._context_menu)
         self._table.doubleClicked.connect(self._on_double_click)
         self._table.cellClicked.connect(self._on_cell_clicked)
+        self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
         hdr = self._table.horizontalHeader()
         hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -359,7 +389,6 @@ class MinersPage(QWidget):
             self._main.add_miner_to_watch(new_ip, port, name, min_ths, notes, group_id)
 
     def _remove_miner(self, ip: str):
-        from PyQt6.QtWidgets import QMessageBox
         reply = QMessageBox.question(
             self, "Remove Miner",
             f"Remove {ip} from monitoring?",
@@ -387,6 +416,101 @@ class MinersPage(QWidget):
         from .dialogs import ChangePoolDialog
         dlg = ChangePoolDialog(self._main, target_ip=None, parent=self)
         dlg.exec()
+
+    def _on_selection_changed(self):
+        ips = self._get_selected_ips()
+        has = len(ips) > 0
+        n = len(ips)
+        self._btn_batch_group.setEnabled(has)
+        self._btn_batch_export.setEnabled(has)
+        self._btn_batch_remove.setEnabled(has)
+        self._batch_lbl.setText(
+            f"{n} miner{'s' if n != 1 else ''} selected — batch actions:" if has
+            else "Select rows (Shift/Ctrl+click) for batch actions:"
+        )
+
+    def _get_selected_ips(self) -> list:
+        seen = set()
+        ips = []
+        for item in self._table.selectedItems():
+            ip_item = self._table.item(item.row(), 2)
+            if ip_item and ip_item.text() not in seen:
+                seen.add(ip_item.text())
+                ips.append(ip_item.text())
+        return ips
+
+    def _batch_assign_group(self):
+        ips = self._get_selected_ips()
+        if not ips:
+            return
+        groups = self._main.get_db().get_groups()
+        if not groups:
+            QMessageBox.information(self, "No Groups", "Create groups first in the Groups page.")
+            return
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QComboBox as _CB
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Assign Group")
+        dlg.setFixedWidth(300)
+        fl = QFormLayout(dlg)
+        fl.setSpacing(12)
+        fl.setContentsMargins(16, 16, 16, 16)
+        combo = _CB()
+        combo.addItem("(No group)", None)
+        for g in groups:
+            combo.addItem(g["name"], g["id"])
+        fl.addRow("Group:", combo)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        fl.addRow(btns)
+        if dlg.exec():
+            gid = combo.currentData()
+            db = self._main.get_db()
+            for ip in ips:
+                db.set_miner_group(ip, gid)
+            if hasattr(self._main, "_groups_page"):
+                self._main._groups_page.refresh()
+            self.reload_groups()
+
+    def _batch_export_csv(self):
+        import csv, os
+        from datetime import datetime
+        ips = set(self._get_selected_ips())
+        if not ips:
+            return
+        default = os.path.join(os.path.expanduser("~"), "Desktop",
+                               f"miners_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+        path, _ = QFileDialog.getSaveFileName(self, "Export Miners CSV", default, "CSV Files (*.csv)")
+        if not path:
+            return
+        headers = COLS[:]
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(headers)
+                for row in range(self._table.rowCount()):
+                    ip_item = self._table.item(row, 2)
+                    if ip_item and ip_item.text() in ips:
+                        w.writerow([
+                            self._table.item(row, col).text() if self._table.item(row, col) else ""
+                            for col in range(self._table.columnCount())
+                        ])
+            QMessageBox.information(self, "Export Complete", f"Exported to:\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Failed", str(e))
+
+    def _batch_remove(self):
+        ips = self._get_selected_ips()
+        if not ips:
+            return
+        reply = QMessageBox.question(
+            self, "Remove Miners",
+            f"Remove {len(ips)} miner(s) from monitoring?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            for ip in ips:
+                self._main.remove_miner_from_watch(ip)
 
     def _update_footer(self):
         total = self._table.rowCount()
