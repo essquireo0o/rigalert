@@ -1,10 +1,13 @@
+import csv
+import os
 from datetime import datetime
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 from .theme import STATUS_COLORS
@@ -45,6 +48,11 @@ class LogsPage(QWidget):
         btn_refresh.setFixedHeight(30)
         btn_refresh.clicked.connect(self._load_from_db)
         title_row.addWidget(btn_refresh)
+
+        btn_export = QPushButton("Export CSV")
+        btn_export.setFixedHeight(30)
+        btn_export.clicked.connect(self._export_csv)
+        title_row.addWidget(btn_export)
 
         btn_clear = QPushButton("Clear Logs")
         btn_clear.setObjectName("btnDanger")
@@ -128,7 +136,6 @@ class LogsPage(QWidget):
             self._table.setRowHidden(row, not visible and bool(text))
 
     def _clear_logs(self):
-        from PyQt6.QtWidgets import QMessageBox
         reply = QMessageBox.question(
             self, "Clear Logs", "Clear all event logs?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -137,6 +144,30 @@ class LogsPage(QWidget):
             self._main.get_db().clear_events()
             self._table.setRowCount(0)
             self._update_footer()
+
+    def _export_csv(self):
+        default_name = f"rigalert_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        default_path = os.path.join(os.path.expanduser("~"), "Desktop", default_name)
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Logs as CSV", default_path, "CSV Files (*.csv)"
+        )
+        if not path:
+            return
+        headers = ["Time", "IP", "Level", "Message"]
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                for row in range(self._table.rowCount()):
+                    if self._table.isRowHidden(row):
+                        continue
+                    writer.writerow([
+                        self._table.item(row, col).text() if self._table.item(row, col) else ""
+                        for col in range(self._table.columnCount())
+                    ])
+            QMessageBox.information(self, "Export Complete", f"Logs exported to:\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Failed", str(e))
 
     def _update_footer(self):
         self._footer.setText(f"{self._table.rowCount()} events shown")
