@@ -496,8 +496,10 @@ class DashboardPage(QWidget):
 
     def _scan_now(self):
         scanner = self._main.get_scanner()
-        scanner.stop()
-        scanner.wait(500)
+        if scanner.isRunning():
+            # Already scanning — just let it finish; don't restart mid-scan
+            self._main._status_msg.setText("Scan already in progress...")
+            return
         scanner.start()
 
     def _add_miner(self):
