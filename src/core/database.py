@@ -25,13 +25,19 @@ class Database:
     def _init(self):
         with self._conn() as c:
             c.executescript("""
+                PRAGMA journal_mode=WAL;"""
+            )
+        with self._conn() as c:
+            c.executescript("""
                 CREATE TABLE IF NOT EXISTS miners (
                     ip TEXT PRIMARY KEY,
                     port INTEGER DEFAULT 4028,
                     name TEXT DEFAULT '',
                     min_ths REAL DEFAULT 0,
-                    added_at TEXT
+                    added_at TEXT,
+                    notes TEXT DEFAULT ''
                 );
+
                 CREATE TABLE IF NOT EXISTS readings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ip TEXT,
@@ -59,19 +65,31 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_readings_ip_ts ON readings(ip, ts);
                 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
             """)
+        # Migrate existing databases that predate the notes column
+        try:
+            with self._conn() as c:
+                c.execute("ALTER TABLE miners ADD COLUMN notes TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
     # ── Miners ────────────────────────────────────────────────────────────
 
-    def upsert_miner(self, ip: str, port: int = 4028, name: str = "", min_ths: float = 0.0):
+    def upsert_miner(self, ip: str, port: int = 4028, name: str = "",
+                     min_ths: float = 0.0, notes: str = ""):
         with self._conn() as c:
             c.execute("""
-                INSERT INTO miners(ip, port, name, min_ths, added_at)
-                VALUES(?,?,?,?,?)
+                INSERT INTO miners(ip, port, name, min_ths, added_at, notes)
+                VALUES(?,?,?,?,?,?)
                 ON CONFLICT(ip) DO UPDATE SET
                     port=excluded.port,
                     name=excluded.name,
-                    min_ths=excluded.min_ths
-            """, (ip, port, name, min_ths, datetime.now().isoformat()))
+                    min_ths=excluded.min_ths,
+                    notes=CASE WHEN excluded.notes != '' THEN excluded.notes ELSE notes END
+            """, (ip, port, name, min_ths, datetime.now().isoformat(), notes))
+
+    def update_notes(self, ip: str, notes: str):
+        with self._conn() as c:
+            c.execute("UPDATE miners SET notes=? WHERE ip=?", (notes, ip))
 
     def delete_miner(self, ip: str):
         with self._conn() as c:

@@ -6,7 +6,7 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QCheckBox, QDialogButtonBox, QDialog, QDoubleSpinBox, QFormLayout,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QProgressBar, QPushButton, QRadioButton, QScrollArea, QSpinBox,
+    QPlainTextEdit, QProgressBar, QPushButton, QRadioButton, QScrollArea, QSpinBox,
     QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
 
@@ -302,6 +302,11 @@ class AddMinerDialog(QDialog):
         self._min_ths.setValue(cfg.default_min_ths)
         form.addRow("Min Hashrate:", self._min_ths)
 
+        self._notes = QPlainTextEdit()
+        self._notes.setPlaceholderText("Optional notes (location, serial number, etc.)")
+        self._notes.setFixedHeight(64)
+        form.addRow("Notes:", self._notes)
+
         layout.addLayout(form)
 
         # Test connection
@@ -326,6 +331,7 @@ class AddMinerDialog(QDialog):
         self._port.setValue(d.get("port", 4028))
         self._name.setText(d.get("name", ""))
         self._min_ths.setValue(d.get("min_ths", self._main.get_config().default_min_ths))
+        self._notes.setPlainText(d.get("notes", ""))
 
     def _test_connection(self):
         ip = self._ip.text().strip()
@@ -362,12 +368,13 @@ class AddMinerDialog(QDialog):
 
         threading.Thread(target=run, daemon=True).start()
 
-    def result_data(self) -> Tuple[str, int, str, float]:
+    def result_data(self) -> Tuple[str, int, str, float, str]:
         return (
             self._ip.text().strip(),
             self._port.value(),
             self._name.text().strip(),
             self._min_ths.value(),
+            self._notes.toPlainText().strip(),
         )
 
 

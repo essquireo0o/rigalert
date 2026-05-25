@@ -217,6 +217,11 @@ class MinersPage(QWidget):
         pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0]
         model_short = m.model[:30] if m.model else "—"
 
+        # Fetch notes from DB for tooltip
+        miners_db = self._main.get_db().get_miners()
+        miner_row = next((r for r in miners_db if r["ip"] == m.ip), {})
+        notes = miner_row.get("notes", "") or ""
+
         items = [
             StatusItem(m.status),
             ColorItem(m.display_name),
@@ -234,6 +239,8 @@ class MinersPage(QWidget):
         ]
         for col, item in enumerate(items):
             item.setData(Qt.ItemDataRole.UserRole, m.ip)
+            if notes:
+                item.setToolTip(f"Notes: {notes}")
             self._table.setItem(row, col, item)
 
     def remove_miner(self, ip: str):
@@ -311,8 +318,8 @@ class MinersPage(QWidget):
         from .dialogs import AddMinerDialog
         dlg = AddMinerDialog(self._main, self)
         if dlg.exec():
-            ip, port, name, min_ths = dlg.result_data()
-            self._main.add_miner_to_watch(ip, port, name, min_ths)
+            ip, port, name, min_ths, notes = dlg.result_data()
+            self._main.add_miner_to_watch(ip, port, name, min_ths, notes)
 
     def _edit_miner(self, ip: str):
         from .dialogs import AddMinerDialog
@@ -320,8 +327,8 @@ class MinersPage(QWidget):
         existing = next((m for m in miners if m["ip"] == ip), None)
         dlg = AddMinerDialog(self._main, self, existing=existing)
         if dlg.exec():
-            new_ip, port, name, min_ths = dlg.result_data()
-            self._main.add_miner_to_watch(new_ip, port, name, min_ths)
+            new_ip, port, name, min_ths, notes = dlg.result_data()
+            self._main.add_miner_to_watch(new_ip, port, name, min_ths, notes)
 
     def _remove_miner(self, ip: str):
         from PyQt6.QtWidgets import QMessageBox

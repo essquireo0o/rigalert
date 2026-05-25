@@ -350,8 +350,8 @@ class MainWindow(QMainWindow):
         self._price_monitor.config = self.config
         self._update_title()
 
-    def add_miner_to_watch(self, ip: str, port: int, name: str, min_ths: float):
-        self.db.upsert_miner(ip, port, name, min_ths)
+    def add_miner_to_watch(self, ip: str, port: int, name: str, min_ths: float, notes: str = ""):
+        self.db.upsert_miner(ip, port, name, min_ths, notes)
         self._scanner.add_miner(ip, port, name, min_ths)
         self.config.saved_miners = self.db.get_miners()
         self.config.save()

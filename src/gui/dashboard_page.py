@@ -362,5 +362,5 @@ class DashboardPage(QWidget):
         from .dialogs import AddMinerDialog
         dlg = AddMinerDialog(self._main, self)
         if dlg.exec():
-            ip, port, name, min_ths = dlg.result_data()
-            self._main.add_miner_to_watch(ip, port, name, min_ths)
+            ip, port, name, min_ths, notes = dlg.result_data()
+            self._main.add_miner_to_watch(ip, port, name, min_ths, notes)
