@@ -8,6 +8,12 @@ All notable changes to RigAlert™ are documented here.
 
 ### Added
 - ROADMAP.md and CHANGELOG.md
+- **Dashboard page** wired into sidebar nav as the first (home) tab
+- **Firmware Tools page** — firmware type detection (VNish / Braiins OS / Stock), per-chain board status, safety-gated dry-run install and restore dialogs, VNish config backup via HTTP API, audit log entries for all firmware actions
+- `src/core/firmware.py` — `detect_type()`, `firmware_badge_color()`, VNish HTTP helpers (`vnish_get_info`, `vnish_get_config`, `vnish_get_network`)
+- **Crypto price alerts** — polls CoinGecko every 5 min (no API key), BTC above/below thresholds, ±% 24h move alerts, altcoin support (any CoinGecko coin ID), state-change deduplication (one alert per threshold cross), "Check Prices Now" button in Alerts page
+- **Per-miner notes** — notes field in Add/Edit Miner dialog, stored in SQLite, shown as row tooltip in Miners table; DB migration handles existing installations
+- Sidebar nav now has 6 tabs: Dashboard, Miners, Alerts, Firmware, Settings, Logs
 
 ---
 
