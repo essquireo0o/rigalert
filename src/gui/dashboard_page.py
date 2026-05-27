@@ -10,32 +10,33 @@ from ..core.miner import MinerData
 from .theme import STATUS_COLORS, BITCOIN_ORANGE, BG_CARD, TEXT_MUTED, BORDER_COLOR
 
 _CHAIN_COLORS = {
-    "running":      "#3fb950",
-    "normal":       "#3fb950",
-    "active":       "#3fb950",
-    "mining":       "#3fb950",
-    "stopped":      "#d29922",
-    "idle":         "#d29922",
+    "running":      "#2fbf71",
+    "normal":       "#2fbf71",
+    "active":       "#2fbf71",
+    "mining":       "#2fbf71",
+    "stopped":      "#f2b84b",
+    "idle":         "#f2b84b",
     "auto-tuning":  "#58a6ff",
-    "disabled":     "#8b949e",
-    "failure":      "#f85149",
-    "dead":         "#f85149",
-    "error":        "#f85149",
+    "disabled":     "#9aa8bd",
+    "failure":      "#ff6b6b",
+    "dead":         "#ff6b6b",
+    "error":        "#ff6b6b",
 }
 
 
 def _chain_color(state: str) -> str:
-    return _CHAIN_COLORS.get(state.lower(), "#8b949e")
+    return _CHAIN_COLORS.get(state.lower(), "#9aa8bd")
 
 
 class MinerCard(QFrame):
-    def __init__(self, miner: MinerData, parent=None):
+    def __init__(self, miner: MinerData, parent=None, main_win=None):
         super().__init__(parent)
         self.setObjectName("minerCard")
-        self.setFixedWidth(320)
-        self.setMinimumHeight(200)
+        self.setFixedWidth(326)
+        self.setMinimumHeight(206)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
         self._miner = miner
+        self._main_win = main_win
         self._build(miner)
 
     def _build(self, m: MinerData):
@@ -48,30 +49,29 @@ class MinerCard(QFrame):
         header.setSpacing(6)
 
         dot = QLabel("●")
-        dot.setStyleSheet(f"color:{STATUS_COLORS.get(m.status, '#8b949e')};font-size:10px;background:transparent;")
+        dot.setStyleSheet(f"color:{STATUS_COLORS.get(m.status, '#9aa8bd')};font-size:10px;background:transparent;")
         header.addWidget(dot)
 
         name = QLabel(m.display_name)
         name.setObjectName("cardName")
-        name.setStyleSheet("font-size:13px;font-weight:700;color:#e6edf3;background:transparent;")
+        name.setStyleSheet("font-size:13px;font-weight:700;color:#eef4ff;background:transparent;")
         header.addWidget(name, 1)
 
-        bc = STATUS_COLORS.get(m.status, "#8b949e")
         if m.status == "online":
-            bs = "background:#238636;color:#aff5b4;"
+            bs = "background:#174f35;color:#8ff0b2;"
         elif m.status == "warning":
-            bs = "background:#9e6a03;color:#fae17d;"
+            bs = "background:#664b1f;color:#ffe2a3;"
         elif m.status == "offline":
-            bs = "background:#da3633;color:#ffdcd7;"
+            bs = "background:#6e2b2b;color:#ffd2d2;"
         else:
-            bs = "background:#30363d;color:#8b949e;"
+            bs = "background:#263144;color:#9aa8bd;"
         badge = QLabel(m.status.upper())
         badge.setStyleSheet(f"{bs}font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;")
         header.addWidget(badge)
         layout.addLayout(header)
 
         # IP + port (clickable — opens miner web UI in browser)
-        ip_lbl = QLabel(f'<a href="http://{m.ip}" style="color:#8b949e;text-decoration:none;">'
+        ip_lbl = QLabel(f'<a href="http://{m.ip}" style="color:#9aa8bd;text-decoration:none;">'
                         f'{m.ip}:{m.port}</a>')
         ip_lbl.setOpenExternalLinks(True)
         ip_lbl.setStyleSheet("font-size:11px;font-family:Consolas,monospace;background:transparent;")
@@ -92,9 +92,9 @@ class MinerCard(QFrame):
                 if "vnish" in fw_lower:
                     fw_label, fw_color = "VNish", "#58a6ff"
                 elif "braiins" in fw_lower or "bosminer" in fw_lower or "bos+" in fw_lower:
-                    fw_label, fw_color = "Braiins OS", "#3fb950"
+                    fw_label, fw_color = "Braiins OS", "#2fbf71"
                 elif fw_lower:
-                    fw_label, fw_color = "Stock", "#8b949e"
+                    fw_label, fw_color = "Stock", "#9aa8bd"
                 else:
                     fw_label, fw_color = None, None
                 if fw_label:
@@ -112,7 +112,7 @@ class MinerCard(QFrame):
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color:#21262d;background:#21262d;max-height:1px;")
+        sep.setStyleSheet("color:#202938;background:#202938;max-height:1px;")
         layout.addWidget(sep)
 
         # ── Hashrate ──────────────────────────────────────────────
@@ -125,7 +125,7 @@ class MinerCard(QFrame):
         hr_val.setStyleSheet(f"font-size:22px;font-weight:700;color:{BITCOIN_ORANGE};background:transparent;")
         hr_row.addWidget(hr_val)
         hr_unit = QLabel(hs_unit)
-        hr_unit.setStyleSheet("font-size:11px;color:#8b949e;padding-bottom:4px;background:transparent;")
+        hr_unit.setStyleSheet("font-size:11px;color:#9aa8bd;padding-bottom:4px;background:transparent;")
         hr_row.addWidget(hr_unit)
         hr_row.addStretch()
 
@@ -147,9 +147,9 @@ class MinerCard(QFrame):
         hr_bar.setValue(pct)
         hr_bar.setMaximumHeight(5)
         hr_bar.setTextVisible(False)
-        bar_color = "#3fb950" if pct >= 95 else "#d29922" if pct >= 80 else "#f85149"
+        bar_color = "#2fbf71" if pct >= 95 else "#f2b84b" if pct >= 80 else "#ff6b6b"
         hr_bar.setStyleSheet(
-            f"QProgressBar{{background:#21262d;border:none;border-radius:3px;height:5px;}}"
+            f"QProgressBar{{background:#202938;border:none;border-radius:3px;height:5px;}}"
             f"QProgressBar::chunk{{background:{bar_color};border-radius:3px;}}"
         )
         layout.addWidget(hr_bar)
@@ -159,17 +159,17 @@ class MinerCard(QFrame):
         grid.setSpacing(3)
         grid.setContentsMargins(0, 4, 0, 0)
 
-        def add_metric(row, col, key, val, val_color="#e6edf3"):
+        def add_metric(row, col, key, val, val_color="#eef4ff"):
             k = QLabel(key)
-            k.setStyleSheet("color:#8b949e;font-size:10px;background:transparent;")
+            k.setStyleSheet("color:#9aa8bd;font-size:10px;background:transparent;")
             v = QLabel(val)
             v.setStyleSheet(f"color:{val_color};font-size:11px;font-weight:500;background:transparent;")
             grid.addWidget(k, row, col * 2)
             grid.addWidget(v, row, col * 2 + 1)
 
         temp = m.display_temp()
-        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#e6edf3")
-                      if temp != "N/A" else "#8b949e")
+        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#eef4ff")
+                      if temp != "N/A" else "#9aa8bd")
 
         # Fan display: show individual fans if available
         if m.fan_speeds and len(m.fan_speeds) > 1:
@@ -182,7 +182,7 @@ class MinerCard(QFrame):
         add_metric(0, 1, "FAN", fan_str)
         add_metric(1, 0, "ACCEPT", f"{m.accepted:,}")
         add_metric(1, 1, "HW ERR", f"{m.hw_error_rate:.2f}%",
-                   "#f85149" if m.hw_error_rate >= 1.0 else "#e6edf3")
+                   "#ff6b6b" if m.hw_error_rate >= 1.0 else "#eef4ff")
         add_metric(2, 0, "UPTIME", m.display_uptime())
         pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0][:20]
         add_metric(2, 1, "POOL", pool_short or "—")
@@ -198,13 +198,13 @@ class MinerCard(QFrame):
         if m.chain_states:
             sep2 = QFrame()
             sep2.setFrameShape(QFrame.Shape.HLine)
-            sep2.setStyleSheet("color:#21262d;background:#21262d;max-height:1px;margin-top:2px;")
+            sep2.setStyleSheet("color:#202938;background:#202938;max-height:1px;margin-top:2px;")
             layout.addWidget(sep2)
 
             chain_row = QHBoxLayout()
             chain_row.setSpacing(4)
             ch_lbl = QLabel("CHAINS:")
-            ch_lbl.setStyleSheet("color:#8b949e;font-size:10px;background:transparent;")
+            ch_lbl.setStyleSheet("color:#9aa8bd;font-size:10px;background:transparent;")
             chain_row.addWidget(ch_lbl)
 
             for i, state in enumerate(m.chain_states):
@@ -228,7 +228,7 @@ class MinerCard(QFrame):
             for fault in m.chain_faults_summary():
                 fl = QLabel(f"⚠ {fault}")
                 fl.setWordWrap(True)
-                fl.setStyleSheet("color:#f85149;font-size:10px;background:transparent;margin-left:4px;")
+                fl.setStyleSheet("color:#ff6b6b;font-size:10px;background:transparent;margin-left:4px;")
                 layout.addWidget(fl)
 
         # ── Alert messages ────────────────────────────────────────
@@ -236,22 +236,19 @@ class MinerCard(QFrame):
         for alert in non_chain_alerts[:2]:
             al = QLabel(f"⚠ {alert}")
             al.setWordWrap(True)
-            al.setStyleSheet("color:#d29922;font-size:10px;background:transparent;")
+            al.setStyleSheet("color:#f2b84b;font-size:10px;background:transparent;")
             layout.addWidget(al)
 
         # ── Details button ────────────────────────────────────────
         sep3 = QFrame()
         sep3.setFrameShape(QFrame.Shape.HLine)
-        sep3.setStyleSheet("color:#21262d;background:#21262d;max-height:1px;margin-top:2px;")
+        sep3.setStyleSheet("color:#202938;background:#202938;max-height:1px;margin-top:2px;")
         layout.addWidget(sep3)
 
         btn_details = QPushButton("Details")
+        btn_details.setObjectName("btnSubtle")
         btn_details.setFixedHeight(24)
-        btn_details.setStyleSheet(
-            "QPushButton{background:#21262d;color:#8b949e;border:1px solid #30363d;"
-            "border-radius:4px;font-size:11px;padding:0 10px;}"
-            "QPushButton:hover{background:#30363d;color:#e6edf3;}"
-        )
+        btn_details.setStyleSheet("font-size:11px;padding:0 10px;border-radius:4px;")
         btn_details.clicked.connect(self._open_details)
         layout.addWidget(btn_details)
 
@@ -259,7 +256,7 @@ class MinerCard(QFrame):
 
     def _open_details(self):
         from .dialogs import MinerDetailsDialog
-        dlg = MinerDetailsDialog(self._miner, self)
+        dlg = MinerDetailsDialog(self._miner, self, main_win=self._main_win)
         dlg.exec()
 
     def _update_border(self, status: str):
@@ -279,7 +276,7 @@ class MinerCard(QFrame):
 
 
 _STAT_CHIP_QSS = (
-    "QFrame#statChip{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:4px 12px;}"
+    "QFrame#statChip{background:#111722;border:1px solid #2d3a50;border-radius:8px;padding:4px 12px;}"
 )
 
 _BTC_PER_TH_PER_DAY = 9.5e-8  # rough network estimate; updated manually as difficulty changes
@@ -294,10 +291,10 @@ def _make_stat_chip(parent=None) -> "tuple[QFrame, QLabel, QLabel]":
     vl.setContentsMargins(0, 4, 0, 4)
     vl.setSpacing(2)
     key_lbl = QLabel()
-    key_lbl.setStyleSheet("color:#8b949e;font-size:10px;font-weight:600;background:transparent;")
+    key_lbl.setStyleSheet("color:#9aa8bd;font-size:10px;font-weight:600;background:transparent;")
     key_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
     val_lbl = QLabel()
-    val_lbl.setStyleSheet("color:#e6edf3;font-size:16px;font-weight:700;background:transparent;")
+    val_lbl.setStyleSheet("color:#eef4ff;font-size:16px;font-weight:700;background:transparent;")
     val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
     vl.addWidget(key_lbl)
     vl.addWidget(val_lbl)
@@ -364,10 +361,9 @@ class DashboardPage(QWidget):
 
         # Fleet stats bar
         stats_row = QHBoxLayout()
-        stats_row.setSpacing(10)
+        stats_row.setSpacing(12)
 
         chip_hs, _, self._stat_hs = _make_stat_chip()
-        _, key_hs, _ = chip_hs, QLabel("HASHRATE"), self._stat_hs
         chip_hs.layout().itemAt(0).widget().setText("HASHRATE")
         self._stat_hs.setText("— TH/s")
         self._stat_hs.setStyleSheet(f"color:{BITCOIN_ORANGE};font-size:16px;font-weight:700;background:transparent;")
@@ -375,32 +371,32 @@ class DashboardPage(QWidget):
         chip_pw, _, self._stat_pw = _make_stat_chip()
         chip_pw.layout().itemAt(0).widget().setText("POWER")
         self._stat_pw.setText("— W")
-        self._stat_pw.setStyleSheet("color:#79c0ff;font-size:16px;font-weight:700;background:transparent;")
+        self._stat_pw.setStyleSheet("color:#68b8ff;font-size:16px;font-weight:700;background:transparent;")
 
         chip_ef, _, self._stat_ef = _make_stat_chip()
         chip_ef.layout().itemAt(0).widget().setText("EFFICIENCY")
         self._stat_ef.setText("— W/TH")
-        self._stat_ef.setStyleSheet("color:#d2a8ff;font-size:16px;font-weight:700;background:transparent;")
+        self._stat_ef.setStyleSheet("color:#bda8ff;font-size:16px;font-weight:700;background:transparent;")
 
         chip_rev, _, self._stat_rev = _make_stat_chip()
         chip_rev.layout().itemAt(0).widget().setText("EST. DAILY REV")
         self._stat_rev.setText("—")
-        self._stat_rev.setStyleSheet(f"color:#3fb950;font-size:16px;font-weight:700;background:transparent;")
+        self._stat_rev.setStyleSheet(f"color:#2fbf71;font-size:16px;font-weight:700;background:transparent;")
 
         chip_on, _, self._stat_on = _make_stat_chip()
         chip_on.layout().itemAt(0).widget().setText("ONLINE")
         self._stat_on.setText("0")
-        self._stat_on.setStyleSheet("color:#3fb950;font-size:16px;font-weight:700;background:transparent;")
+        self._stat_on.setStyleSheet("color:#2fbf71;font-size:16px;font-weight:700;background:transparent;")
 
         chip_warn, _, self._stat_warn = _make_stat_chip()
         chip_warn.layout().itemAt(0).widget().setText("WARNINGS")
         self._stat_warn.setText("0")
-        self._stat_warn.setStyleSheet("color:#d29922;font-size:16px;font-weight:700;background:transparent;")
+        self._stat_warn.setStyleSheet("color:#f2b84b;font-size:16px;font-weight:700;background:transparent;")
 
         chip_off, _, self._stat_off = _make_stat_chip()
         chip_off.layout().itemAt(0).widget().setText("OFFLINE")
         self._stat_off.setText("0")
-        self._stat_off.setStyleSheet("color:#f85149;font-size:16px;font-weight:700;background:transparent;")
+        self._stat_off.setStyleSheet("color:#ff6b6b;font-size:16px;font-weight:700;background:transparent;")
 
         for chip in [chip_hs, chip_pw, chip_ef, chip_rev, chip_on, chip_warn, chip_off]:
             stats_row.addWidget(chip)
@@ -416,7 +412,7 @@ class DashboardPage(QWidget):
         self._grid_container = QWidget()
         self._grid_container.setStyleSheet("background:transparent;")
         self._grid = QGridLayout(self._grid_container)
-        self._grid.setSpacing(12)
+        self._grid.setSpacing(14)
         self._grid.setContentsMargins(0, 0, 0, 0)
         self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
@@ -427,7 +423,7 @@ class DashboardPage(QWidget):
         if miner.ip in self._cards:
             self._cards[miner.ip].refresh(miner)
         else:
-            card = MinerCard(miner)
+            card = MinerCard(miner, main_win=self._main)
             self._cards[miner.ip] = card
             self._relayout()
         self._update_summary()
@@ -447,7 +443,7 @@ class DashboardPage(QWidget):
     def _relayout(self):
         while self._grid.count():
             self._grid.takeAt(0)
-        cols = max(1, self._grid_container.width() // 336)
+        cols = max(1, self._grid_container.width() // 342)
         for i, card in enumerate(self._cards.values()):
             self._grid.addWidget(card, i // cols, i % cols)
 

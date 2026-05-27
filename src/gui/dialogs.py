@@ -24,11 +24,13 @@ class MinerDetailsDialog(QDialog):
         "failure": "#f85149", "dead": "#f85149", "error": "#f85149",
     }
 
-    def __init__(self, miner: MinerData, parent=None):
+    def __init__(self, miner: MinerData, parent=None, main_win=None):
         super().__init__(parent)
         self._m = miner
+        self._main_win = main_win
+        self._chain_status_lbl: Optional[QLabel] = None
         self.setWindowTitle(f"Miner Details — {miner.ip}")
-        self.setMinimumWidth(700)
+        self.setMinimumWidth(760)
         self.setMinimumHeight(560)
         self._build()
 
@@ -89,8 +91,9 @@ class MinerDetailsDialog(QDialog):
         if m.chain_states:
             ch_box = self._section(f"Chain Status  ({len(m.chain_states)} chains)")
             ch_vbox = QVBoxLayout(ch_box)
-            ch_vbox.setSpacing(4)
+            ch_vbox.setSpacing(6)
 
+            # Data table (9 columns — no Action column so it fits without scrolling)
             tbl = QTableWidget(len(m.chain_states), 9)
             tbl.setHorizontalHeaderLabels(
                 ["Chain", "State", "Fault", "Rate (TH/s)", "Ideal (TH/s)",
@@ -108,7 +111,7 @@ class MinerDetailsDialog(QDialog):
                 "QTableWidget::item:alternate{background:#0d1117;}"
                 "QTableWidget::item:!alternate{background:#161b22;}"
             )
-            tbl.horizontalHeader().setStretchLastSection(False)
+            tbl.horizontalHeader().setStretchLastSection(True)
 
             def _ti(text: str, color: str = "#e6edf3") -> QTableWidgetItem:
                 item = QTableWidgetItem(text)
@@ -118,28 +121,81 @@ class MinerDetailsDialog(QDialog):
 
             for i, state in enumerate(m.chain_states):
                 col = self._CHAIN_COLORS.get(state.lower(), "#8b949e")
-                rate = m.chain_rates[i] if i < len(m.chain_rates) else 0.0
+                rate  = m.chain_rates[i]       if i < len(m.chain_rates)       else 0.0
                 ideal = m.chain_ideal_rates[i] if i < len(m.chain_ideal_rates) else 0.0
-                chip = m.chain_temps_chip[i] if i < len(m.chain_temps_chip) else 0.0
-                pcb = m.chain_temps_pcb[i] if i < len(m.chain_temps_pcb) else 0.0
-                freq = m.chain_freqs[i] if i < len(m.chain_freqs) else 0.0
-                acn = m.chain_acns[i] if i < len(m.chain_acns) else 0
-                fault = m.chain_faults[i] if i < len(m.chain_faults) else ""
+                chip  = m.chain_temps_chip[i]  if i < len(m.chain_temps_chip)  else 0.0
+                pcb   = m.chain_temps_pcb[i]   if i < len(m.chain_temps_pcb)   else 0.0
+                freq  = m.chain_freqs[i]        if i < len(m.chain_freqs)       else 0.0
+                acn   = m.chain_acns[i]         if i < len(m.chain_acns)        else 0
+                fault = m.chain_faults[i]       if i < len(m.chain_faults)      else ""
 
                 tbl.setItem(i, 0, _ti(f"  Chain {i+1}"))
                 tbl.setItem(i, 1, _ti(f"  {state}", col))
                 tbl.setItem(i, 2, _ti(f"  {fault}", "#f85149" if fault else "#8b949e"))
-                tbl.setItem(i, 3, _ti(f"  {rate:.4f}" if rate > 0 else "  0"))
+                tbl.setItem(i, 3, _ti(f"  {rate:.4f}"  if rate  > 0 else "  0"))
                 tbl.setItem(i, 4, _ti(f"  {ideal:.4f}" if ideal > 0 else "  0"))
-                tbl.setItem(i, 5, _ti(f"  {chip:.1f}" if chip > 0 else "  —"))
-                tbl.setItem(i, 6, _ti(f"  {pcb:.1f}" if pcb > 0 else "  —"))
-                tbl.setItem(i, 7, _ti(f"  {freq:.0f}" if freq > 0 else "  —"))
-                tbl.setItem(i, 8, _ti(f"  {acn}" if acn > 0 else "  —"))
+                tbl.setItem(i, 5, _ti(f"  {chip:.1f}"  if chip  > 0 else "  —"))
+                tbl.setItem(i, 6, _ti(f"  {pcb:.1f}"   if pcb   > 0 else "  —"))
+                tbl.setItem(i, 7, _ti(f"  {freq:.0f}"  if freq  > 0 else "  —"))
+                tbl.setItem(i, 8, _ti(f"  {acn}"       if acn   > 0 else "  —"))
                 tbl.setRowHeight(i, 32)
 
             tbl.resizeColumnsToContents()
             tbl.setMinimumHeight(len(m.chain_states) * 34 + 36)
             ch_vbox.addWidget(tbl)
+
+            # ── Board control buttons (always visible below the table) ──────
+            # Board control note + open-in-browser button
+            note = QLabel(
+                "VNISH board enable/disable requires the web UI.  "
+                "Click below to open it in Chrome with auto-unlock:"
+            )
+            note.setStyleSheet("color:#8b949e;font-size:11px;background:transparent;")
+            note.setWordWrap(True)
+            ch_vbox.addWidget(note)
+
+            ctrl_row = QHBoxLayout()
+            ctrl_row.setSpacing(8)
+
+            btn_open = QPushButton("Open Board Settings in Chrome")
+            btn_open.setFixedHeight(34)
+            btn_open.setStyleSheet(
+                "QPushButton{background:#1a2a3a;color:#58a6ff;border:1px solid #1f6feb;"
+                "border-radius:4px;padding:4px 16px;font-size:12px;font-weight:600;}"
+                "QPushButton:hover{background:#1f4068;}"
+            )
+
+            def _open_chrome():
+                import os, subprocess
+                web_user, web_pwd = "root", "admin"
+                if self._main_win and hasattr(self._main_win, "get_config"):
+                    cfg = self._main_win.get_config()
+                    web_user = cfg.miner_web_user or "root"
+                    web_pwd  = cfg.miner_web_password or "admin"
+                url = f"http://{m.ip}"
+                chrome_paths = [
+                    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                    os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+                ]
+                launched = False
+                for path in chrome_paths:
+                    if os.path.exists(path):
+                        subprocess.Popen([path, url])
+                        launched = True
+                        break
+                if not launched:
+                    subprocess.Popen(["start", "chrome", url], shell=True)
+                # Trigger auto-unlock
+                from ..gui.miners_page import _auto_unlock_vnish
+                threading.Thread(
+                    target=_auto_unlock_vnish, args=(web_pwd,), daemon=True
+                ).start()
+
+            btn_open.clicked.connect(_open_chrome)
+            ctrl_row.addWidget(btn_open)
+            ctrl_row.addStretch()
+            ch_vbox.addLayout(ctrl_row)
             vbox.addWidget(ch_box)
 
         # ── Temperature ────────────────────────────────────────────

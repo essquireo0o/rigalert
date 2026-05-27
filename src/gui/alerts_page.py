@@ -23,11 +23,11 @@ class AlertsPage(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea{border:none;background:#0d1117;}")
+        scroll.setStyleSheet("QScrollArea{border:none;background:#0a0d12;}")
         root.addWidget(scroll)
 
         content = QWidget()
-        content.setStyleSheet("background:#0d1117;")
+        content.setStyleSheet("background:#0a0d12;")
         scroll.setWidget(content)
 
         outer = QVBoxLayout(content)
@@ -44,17 +44,17 @@ class AlertsPage(QWidget):
             "not one email per event. All issues since the last email are bundled together."
         )
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color:#8b949e;font-size:12px;background:transparent;")
+        sub.setStyleSheet(f"color:#9aa8bd;font-size:12px;background:transparent;")
         outer.addWidget(sub)
 
         # ── Active Alerts ──────────────────────────────────────────────────
         active_box = QGroupBox("Active Alerts")
         active_box.setStyleSheet(
-            "QGroupBox{border:2px solid #f85149;border-radius:8px;"
-            "margin-top:14px;padding:14px;background:#161b22;}"
-            "QGroupBox::title{color:#f85149;font-size:11px;font-weight:700;"
-            "text-transform:uppercase;letter-spacing:1px;subcontrol-origin:margin;"
-            "left:10px;padding:0 6px;background:#0d1117;}"
+            "QGroupBox{border:2px solid #ff6b6b;border-radius:8px;"
+            "margin-top:14px;padding:14px;background:#111722;}"
+            "QGroupBox::title{color:#ff6b6b;font-size:11px;font-weight:700;"
+            "subcontrol-origin:margin;"
+            "left:10px;padding:0 6px;background:#0a0d12;}"
         )
         av = QVBoxLayout(active_box)
         av.setSpacing(8)
@@ -62,8 +62,8 @@ class AlertsPage(QWidget):
         self._active_list = QListWidget()
         self._active_list.setFixedHeight(120)
         self._active_list.setStyleSheet(
-            "QListWidget{background:#0d1117;border:1px solid #30363d;border-radius:4px;}"
-            "QListWidget::item{padding:4px 8px;border-bottom:1px solid #21262d;color:#f85149;}"
+            "QListWidget{background:#0d121a;border:1px solid #2d3a50;border-radius:6px;}"
+            "QListWidget::item{padding:5px 8px;border-bottom:1px solid #202938;color:#ff6b6b;}"
         )
         av.addWidget(self._active_list)
 
@@ -92,10 +92,10 @@ class AlertsPage(QWidget):
         sched_box = QGroupBox("Email Schedule  (one summary email per interval)")
         sched_box.setStyleSheet(
             f"QGroupBox{{border:2px solid {BITCOIN_ORANGE};border-radius:8px;"
-            f"margin-top:14px;padding:14px;background:#161b22;}}"
+            f"margin-top:14px;padding:14px;background:#111722;}}"
             f"QGroupBox::title{{color:{BITCOIN_ORANGE};font-size:11px;font-weight:700;"
-            f"text-transform:uppercase;letter-spacing:1px;subcontrol-origin:margin;"
-            f"left:10px;padding:0 6px;background:#0d1117;}}"
+            f"subcontrol-origin:margin;"
+            f"left:10px;padding:0 6px;background:#0a0d12;}}"
         )
         sf = QVBoxLayout(sched_box)
         sf.setSpacing(10)
@@ -107,13 +107,13 @@ class AlertsPage(QWidget):
         self._sched_grp = QButtonGroup(self)
         for rb in [self._rb_hourly, self._rb_12h, self._rb_daily]:
             self._sched_grp.addButton(rb)
-            rb.setStyleSheet("color:#e6edf3;font-size:13px;spacing:8px;")
+            rb.setStyleSheet("color:#eef4ff;font-size:13px;spacing:8px;")
             sf.addWidget(rb)
 
         hour_row = QHBoxLayout()
         hour_row.setContentsMargins(26, 0, 0, 0)
         lbl = QLabel("Daily send time (0–23 hour, local time):")
-        lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         hour_row.addWidget(lbl)
         self._send_hour = QSpinBox()
         self._send_hour.setRange(0, 23)
@@ -192,8 +192,8 @@ class AlertsPage(QWidget):
 
         self._chk_email = QCheckBox("Send summary email via Gmail  (configure Gmail in Settings tab)")
         self._chk_popup = QCheckBox("Show Windows tray notification at each interval")
-        self._chk_email.setStyleSheet("color:#e6edf3;")
-        self._chk_popup.setStyleSheet("color:#e6edf3;")
+        self._chk_email.setStyleSheet("color:#eef4ff;")
+        self._chk_popup.setStyleSheet("color:#eef4ff;")
         df.addWidget(self._chk_email)
         df.addWidget(self._chk_popup)
 
@@ -215,16 +215,16 @@ class AlertsPage(QWidget):
         pf.setSpacing(10)
 
         self._chk_price = QCheckBox("Enable crypto price alerts")
-        self._chk_price.setStyleSheet("color:#e6edf3;font-weight:600;")
+        self._chk_price.setStyleSheet("color:#eef4ff;font-weight:600;")
         pf.addWidget(self._chk_price)
 
         # BTC thresholds
         btc_box = QGroupBox("Bitcoin (BTC)")
         btc_box.setStyleSheet(
-            "QGroupBox{border:1px solid #21262d;border-radius:4px;margin-top:8px;"
-            "padding:8px;background:#0d1117;}"
+            "QGroupBox{border:1px solid #202938;border-radius:6px;margin-top:8px;"
+            "padding:8px;background:#0d121a;}"
             "QGroupBox::title{subcontrol-origin:margin;left:6px;padding:0 4px;"
-            "background:#0d1117;color:#8b949e;font-size:11px;}"
+            "background:#0d121a;color:#9aa8bd;font-size:11px;}"
         )
         bf = QFormLayout(btc_box)
         bf.setSpacing(8)
@@ -259,10 +259,10 @@ class AlertsPage(QWidget):
         # Altcoin row (simple: coin id + above/below)
         alt_box = QGroupBox("Altcoins (one per line: coin_id,above_usd,below_usd  e.g. ethereum,4000,2000)")
         alt_box.setStyleSheet(
-            "QGroupBox{border:1px solid #21262d;border-radius:4px;margin-top:8px;"
-            "padding:8px;background:#0d1117;}"
+            "QGroupBox{border:1px solid #202938;border-radius:6px;margin-top:8px;"
+            "padding:8px;background:#0d121a;}"
             "QGroupBox::title{subcontrol-origin:margin;left:6px;padding:0 4px;"
-            "background:#0d1117;color:#8b949e;font-size:10px;}"
+            "background:#0d121a;color:#9aa8bd;font-size:10px;}"
         )
         af = QVBoxLayout(alt_box)
         self._altcoin_text = QLineEdit()
@@ -274,7 +274,7 @@ class AlertsPage(QWidget):
             "Use CoinGecko coin IDs: bitcoin, ethereum, solana, cardano, etc.  "
             "Leave blank to disable altcoin alerts."
         )
-        coin_hint.setStyleSheet("color:#8b949e;font-size:11px;background:transparent;")
+        coin_hint.setStyleSheet("color:#9aa8bd;font-size:11px;background:transparent;")
         coin_hint.setWordWrap(True)
         af.addWidget(coin_hint)
         pf.addWidget(alt_box)
@@ -302,7 +302,7 @@ class AlertsPage(QWidget):
         btn_row.addWidget(btn_save)
 
         self._saved_lbl = QLabel("")
-        self._saved_lbl.setStyleSheet("color:#3fb950;font-size:12px;background:transparent;")
+        self._saved_lbl.setStyleSheet("color:#2fbf71;font-size:12px;background:transparent;")
         btn_row.addWidget(self._saved_lbl)
         btn_row.addStretch()
         outer.addLayout(btn_row)
@@ -403,7 +403,7 @@ class AlertsPage(QWidget):
 
     def _check_prices_now(self):
         self._price_result.setText("Fetching...")
-        self._price_result.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        self._price_result.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         from ..alerts.price_monitor import _fetch_prices
         import threading
 
@@ -421,11 +421,11 @@ class AlertsPage(QWidget):
         if price:
             direction = "▲" if change >= 0 else "▼"
             self._price_result.setText(f"BTC: ${price:,.0f}  {direction}{abs(change):.1f}% 24h")
-            color = "#3fb950" if change >= 0 else "#f85149"
+            color = "#2fbf71" if change >= 0 else "#ff6b6b"
             self._price_result.setStyleSheet(f"color:{color};font-size:12px;background:transparent;")
         else:
             self._price_result.setText("Could not fetch price — check internet connection")
-            self._price_result.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
+            self._price_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
 
     def refresh_active_alerts(self, miners):
         """Called by MainWindow on each miner update to refresh the active alerts panel."""
@@ -448,11 +448,11 @@ class AlertsPage(QWidget):
             for kind, detail in issues:
                 item = QListWidgetItem(f"  {m.display_name} ({m.ip})  —  {kind}: {detail}")
                 item.setData(Qt.ItemDataRole.UserRole, m.ip)
-                item.setForeground(QColor("#f85149" if kind in ("OFFLINE", "CRIT TEMP") else "#d29922"))
+                item.setForeground(QColor("#ff6b6b" if kind in ("OFFLINE", "CRIT TEMP") else "#f2b84b"))
                 self._active_list.addItem(item)
         if self._active_list.count() == 0:
             ok = QListWidgetItem("  No active alerts — fleet is healthy")
-            ok.setForeground(QColor("#3fb950"))
+            ok.setForeground(QColor("#2fbf71"))
             self._active_list.addItem(ok)
 
     def _on_active_item_changed(self, current, _prev):
@@ -487,7 +487,7 @@ class AlertsPage(QWidget):
                     self._main.dismiss_miner_alerts(ip)
         self._active_list.clear()
         ok = QListWidgetItem("  No active alerts — fleet is healthy")
-        ok.setForeground(QColor("#3fb950"))
+        ok.setForeground(QColor("#2fbf71"))
         self._active_list.addItem(ok)
 
     def _send_test(self):
@@ -501,7 +501,7 @@ class AlertsPage(QWidget):
                                 "Set a destination email address in Settings first.")
             return
         self._test_result.setText("Sending...")
-        self._test_result.setStyleSheet("color:#d29922;font-size:12px;background:transparent;")
+        self._test_result.setStyleSheet("color:#f2b84b;font-size:12px;background:transparent;")
 
         from ..alerts.gmail_oauth import send_email
         from ..alerts.email_builder import build_summary_email
@@ -512,9 +512,9 @@ class AlertsPage(QWidget):
                              cfg.alert_to_email, subject, html)
         if ok:
             self._test_result.setText("✓ Test email sent — check your inbox")
-            self._test_result.setStyleSheet("color:#3fb950;font-size:12px;background:transparent;")
+            self._test_result.setStyleSheet("color:#2fbf71;font-size:12px;background:transparent;")
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(5000, lambda: self._test_result.setText(""))
         else:
             self._test_result.setText(f"✗ {err}")
-            self._test_result.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
+            self._test_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")

@@ -167,6 +167,275 @@ class CGMinerAPI:
             return True, f"Restart OK: {msg}"
         return False, f"Restart response: {result}"
 
+    def set_chain_enabled(self, chain_index: int, enabled: bool,
+                          web_user: str = "root", web_password: str = "admin") -> tuple:
+        """Enable or disable a hashboard by 0-based chain index.
+
+        Tries CGMiner socket commands and VNISH HTTP REST API in parallel.
+        Returns (success, message).
+        """
+        import threading as _threading
+
+        value = "1" if enabled else "0"
+        label = "enabled" if enabled else "disabled"
+        results: Dict[str, Any] = {}
+
+        # ── Socket commands (parallel) ─────────────────────────────
+        def _send_asc():
+            cmd = "ascenable" if enabled else "ascdisable"
+            results["asc"] = self._send(cmd, str(chain_index))
+
+        def _send_ascset():
+            results["ascset"] = self._send("ascset", f"{chain_index},enable,{value}")
+
+        def _send_ascset2():
+            # VNISH alternate: ascset without numeric value
+            action = "enable" if enabled else "disable"
+            results["ascset2"] = self._send("ascset", f"{chain_index},{action}")
+
+        t1 = _threading.Thread(target=_send_asc, daemon=True)
+        t2 = _threading.Thread(target=_send_ascset, daemon=True)
+        t3 = _threading.Thread(target=_send_ascset2, daemon=True)
+        t1.start(); t2.start(); t3.start()
+        t1.join(); t2.join(); t3.join()
+
+        def _sock_ok(r) -> bool:
+            if not r:
+                return False
+            s = r.get("STATUS", [{}])
+            return (s[0].get("STATUS", "") if s else "").upper() in ("S", "I")
+
+        for key in ("asc", "ascset", "ascset2"):
+            if _sock_ok(results.get(key)):
+                return True, f"Chain {chain_index + 1} {label} (socket)"
+
+        # ── VNISH HTTP REST API ────────────────────────────────────
+        ok, msg = self._http_set_chain_enabled(chain_index, enabled, web_user, web_password)
+        if ok:
+            return True, msg
+
+        return False, f"Chain {chain_index + 1}: all commands rejected — check firmware permissions"
+
+    def probe_api(self, web_user: str = "root", web_password: str = "admin") -> str:
+        """Probe the miner HTTP API and return a diagnostic string."""
+        import urllib.request, urllib.error, base64, threading as _t
+        auth = "Basic " + base64.b64encode(f"{web_user}:{web_password}".encode()).decode()
+        base = f"http://{self.host}"
+        hdrs = {"Authorization": auth, "User-Agent": "RigAlert/1.0"}
+        paths = [
+            "/api/v1/config", "/api/v1/info", "/api/v1/summary",
+            "/api/v1/stats", "/api/v1/mining", "/api/v1/miner/config",
+            "/cgi-bin/get_miner_conf.cgi", "/cgi-bin/minerConfiguration.cgi",
+        ]
+        results = {}
+
+        def _probe(path):
+            try:
+                req = urllib.request.Request(f"{base}{path}", headers=hdrs)
+                with urllib.request.urlopen(req, timeout=3) as r:
+                    body = r.read(600).decode("utf-8", errors="replace")
+                    results[path] = f"HTTP {r.status}: {body[:400]}"
+            except urllib.error.HTTPError as e:
+                body = e.read(200).decode("utf-8", errors="replace")
+                results[path] = f"HTTP {e.code}: {body[:200]}"
+            except Exception as ex:
+                results[path] = f"ERR: {ex}"
+
+        threads = [_t.Thread(target=_probe, args=(p,), daemon=True) for p in paths]
+        for t in threads: t.start()
+        for t in threads: t.join()
+        return "\n\n".join(f"GET {p}\n{results.get(p, 'no response')}" for p in paths)
+
+    def _http_set_chain_enabled(self, chain_index: int, enabled: bool,
+                                 user: str, password: str) -> tuple:
+        import urllib.request, urllib.error, urllib.parse
+        import base64, json as _json, threading as _t
+
+        label = "enabled" if enabled else "disabled"
+        auth  = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        base  = f"http://{self.host}"
+        jhdrs = {"Content-Type": "application/json",
+                 "Authorization": auth, "User-Agent": "RigAlert/1.0"}
+        fhdrs = {"Content-Type": "application/x-www-form-urlencoded",
+                 "Authorization": auth, "User-Agent": "RigAlert/1.0"}
+        winner: Dict[str, Any] = {}
+
+        def _jcall(method, url, payload=None):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=_json.dumps(payload).encode() if payload is not None else None,
+                    method=method, headers=jhdrs,
+                )
+                with urllib.request.urlopen(req, timeout=3) as r:
+                    return r.status, r.read(2000)
+            except urllib.error.HTTPError as e:
+                return e.code, e.read(200)
+            except Exception:
+                return None, b""
+
+        def _fcall(url, form_dict):
+            try:
+                data = urllib.parse.urlencode(form_dict).encode()
+                req = urllib.request.Request(url, data=data, method="POST", headers=fhdrs)
+                with urllib.request.urlopen(req, timeout=3) as r:
+                    return r.status, r.read(500)
+            except urllib.error.HTTPError as e:
+                return e.code, e.read(200)
+            except Exception:
+                return None, b""
+
+        # ── LuCI login (get stok) ──────────────────────────────────
+        stok = ""
+        try:
+            form = urllib.parse.urlencode(
+                {"luci_username": user, "luci_password": password}
+            ).encode()
+            lr = urllib.request.Request(
+                f"{base}/cgi-bin/luci/", data=form, method="POST",
+                headers={"Content-Type": "application/x-www-form-urlencoded",
+                         "User-Agent": "RigAlert/1.0"},
+            )
+            class _NR(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, *a, **k): return None
+            opener = urllib.request.build_opener(_NR())
+            try:
+                with opener.open(lr, timeout=4) as r:
+                    loc = r.headers.get("Location", "")
+            except urllib.error.HTTPError as e:
+                loc = e.headers.get("Location", "")
+            if ";stok=" in loc:
+                stok = loc.split(";stok=")[1].split("/")[0]
+        except Exception:
+            pass
+
+        # ── Antminer CGI approach (read-modify-write) ──────────────
+        def _try_antminer_cgi():
+            if winner: return
+            # Get current config
+            s, body = _jcall("GET", f"{base}/cgi-bin/get_miner_conf.cgi")
+            if s != 200: return
+            try:
+                cfg = _json.loads(body)
+            except Exception:
+                return
+            # Antminer config uses "chain-X" keys or flat enabled flags
+            val = "1" if enabled else "0"
+            for key in (f"chain{chain_index}", f"chain-{chain_index}",
+                        f"bitmain-chain{chain_index}"):
+                if key in cfg:
+                    cfg[key] = {"enabled": val} if isinstance(cfg[key], dict) else val
+            # Also try top-level enabled flag
+            for key in (f"chain{chain_index}-enabled",
+                        f"chain{chain_index}_enabled"):
+                if key in cfg:
+                    cfg[key] = val
+            # POST back
+            s2, _ = _fcall(f"{base}/cgi-bin/set_miner_conf.cgi", cfg)
+            if s2 in (200, 201, 204):
+                winner["msg"] = f"Chain {chain_index+1} {label} (Antminer CGI)"
+
+        # ── REST config read-modify-write (parallel per endpoint) ──
+        api_roots = []
+        if stok:
+            api_roots.append(f"{base}/cgi-bin/luci/;stok={stok}")
+        api_roots.append(base)
+
+        def _try_rest_cfg(api_root, cfg_path):
+            if winner: return
+            s, body = _jcall("GET", f"{api_root}{cfg_path}")
+            if s != 200: return
+            try:
+                cfg = _json.loads(body)
+            except Exception:
+                return
+            modified = False
+            for key in ("boards", "chains", "hashboards"):
+                val = cfg.get(key)
+                if isinstance(val, list):
+                    for b in val:
+                        for ik in ("index", "id", "board", "chain"):
+                            if b.get(ik) == chain_index:
+                                b["enabled"] = enabled
+                                modified = True
+                elif isinstance(val, dict):
+                    k = str(chain_index)
+                    if k in val:
+                        entry = val[k]
+                        if isinstance(entry, dict):
+                            entry["enabled"] = enabled
+                        else:
+                            val[k] = {"enabled": enabled}
+                        modified = True
+            if not modified:
+                return
+            for method in ("POST", "PUT", "PATCH"):
+                if winner: return
+                s2, _ = _jcall(method, f"{api_root}{cfg_path}", cfg)
+                if s2 in (200, 201, 204):
+                    winner["msg"] = f"Chain {chain_index+1} {label}"
+                    _jcall("POST", f"{base}/api/v1/restart", {})
+
+        # ── Direct board endpoints (fire-and-forget style) ─────────
+        direct = [
+            ("POST", f"/api/v1/hashboard/{chain_index}", {"enabled": enabled}),
+            ("PUT",  f"/api/v1/hashboard/{chain_index}", {"enabled": enabled}),
+            ("POST", f"/api/v1/board/{chain_index}",     {"enabled": enabled}),
+            ("POST", "/api/v1/hashboards", {"index": chain_index, "enabled": enabled}),
+            ("POST", "/api/v1/chains",     {"index": chain_index, "enabled": enabled}),
+            ("POST", "/api/v1/config",
+             {"boards": [{"index": chain_index, "enabled": enabled}]}),
+            ("POST", "/api/v1/config",
+             {"chains": {str(chain_index): {"enabled": enabled}}}),
+        ]
+
+        def _try_direct(method, path, payload):
+            if winner: return
+            s, _ = _jcall(method, f"{base}{path}", payload)
+            if s in (200, 201, 204):
+                winner["msg"] = f"Chain {chain_index+1} {label}"
+                _jcall("POST", f"{base}/api/v1/restart", {})
+
+        # Launch all in parallel
+        threads = [_t.Thread(target=_try_antminer_cgi, daemon=True)]
+        for ar in api_roots:
+            for cp in ("/api/v1/config", "/api/v1/mining/config",
+                       "/api/v1/miner/config", "/api/v1/mining"):
+                threads.append(_t.Thread(
+                    target=_try_rest_cfg, args=(ar, cp), daemon=True))
+        for method, path, payload in direct:
+            threads.append(_t.Thread(
+                target=_try_direct, args=(method, path, payload), daemon=True))
+
+        for t in threads: t.start()
+        for t in threads: t.join()
+
+        if winner:
+            return True, winner["msg"]
+        return False, "HTTP: all endpoints rejected — click Probe API to diagnose"
+
+    def locate(self, enabled: bool = True) -> tuple:
+        """
+        Best-effort miner identification through CGMiner-compatible commands.
+        Different firmware exposes LED control under different privileged names.
+        """
+        value = "1" if enabled else "0"
+        candidates = [
+            ("ascset", f"0,led,{value}"),
+            ("ascset", f"0,blink,{value}"),
+            ("ascset", f"0,identify,{value}"),
+            ("ascset", f"all,led,{value}"),
+        ]
+        for command, parameter in candidates:
+            result = self._send(command, parameter)
+            if not result:
+                continue
+            status = result.get("STATUS", [{}])
+            code = status[0].get("STATUS", "").upper() if status else ""
+            if code in ("S", "I"):
+                return True, "Locate LED enabled" if enabled else "Locate LED disabled"
+        return False, "Locate LED command was not accepted by this miner"
+
 
 def parse_miner_data(ip: str, port: int, raw: Dict[str, Any],
                      existing: Optional[MinerData] = None) -> MinerData:

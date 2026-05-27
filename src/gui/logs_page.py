@@ -13,10 +13,10 @@ from PyQt6.QtWidgets import (
 from .theme import STATUS_COLORS
 
 LEVEL_COLORS = {
-    "INFO":  "#3fb950",
-    "WARN":  "#d29922",
-    "ERROR": "#f85149",
-    "DEBUG": "#8b949e",
+    "INFO":  "#2fbf71",
+    "WARN":  "#f2b84b",
+    "ERROR": "#ff6b6b",
+    "DEBUG": "#9aa8bd",
 }
 
 
@@ -95,18 +95,18 @@ class LogsPage(QWidget):
         self._table.insertRow(row)
         self._table.setRowHeight(row, 32)
 
-        color = LEVEL_COLORS.get(level.upper(), "#e6edf3")
+        color = LEVEL_COLORS.get(level.upper(), "#eef4ff")
 
-        def item(text, c="#e6edf3"):
+        def item(text, c="#eef4ff"):
             it = QTableWidgetItem(text)
             it.setForeground(QColor(c))
             it.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
             return it
 
-        self._table.setItem(row, 0, item(ts, "#8b949e"))
-        self._table.setItem(row, 1, item(ip, "#8b949e"))
+        self._table.setItem(row, 0, item(ts, "#9aa8bd"))
+        self._table.setItem(row, 1, item(ip, "#9aa8bd"))
         self._table.setItem(row, 2, item(level.upper(), color))
-        self._table.setItem(row, 3, item(message, color if level.upper() != "INFO" else "#e6edf3"))
+        self._table.setItem(row, 3, item(message, color if level.upper() != "INFO" else "#eef4ff"))
 
         # Keep max 1000 rows
         while self._table.rowCount() > 1000:

@@ -8,14 +8,14 @@ from PyQt6.QtWidgets import (
 )
 
 _GROUP_COLORS = [
-    ("#3fb950", "Green"),
+    ("#2fbf71", "Green"),
     ("#58a6ff", "Blue"),
-    ("#d29922", "Yellow"),
-    ("#f85149", "Red"),
-    ("#d2a8ff", "Purple"),
+    ("#f2b84b", "Yellow"),
+    ("#ff6b6b", "Red"),
+    ("#bda8ff", "Purple"),
     ("#ffa657", "Orange"),
-    ("#8b949e", "Gray"),
-    ("#c8a94b", "Gold"),
+    ("#9aa8bd", "Gray"),
+    ("#f2b84b", "Gold"),
 ]
 
 
@@ -25,7 +25,7 @@ class _GroupDialog(QDialog):
         self._existing = existing
         self.setWindowTitle("Edit Group" if existing else "Create Group")
         self.setFixedWidth(360)
-        self._selected_color = existing["color"] if existing else "#3fb950"
+        self._selected_color = existing["color"] if existing else "#2fbf71"
         self._build()
         if existing:
             self._name.setText(existing.get("name", ""))
@@ -46,7 +46,7 @@ class _GroupDialog(QDialog):
 
         # Color picker
         color_lbl = QLabel("Group Color:")
-        color_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        color_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         layout.addWidget(color_lbl)
 
         color_row = QHBoxLayout()
@@ -56,8 +56,8 @@ class _GroupDialog(QDialog):
             btn.setFixedSize(28, 28)
             btn.setToolTip(name)
             btn.setStyleSheet(
-                f"QPushButton{{background:{hex_color};border:2px solid #30363d;border-radius:6px;}}"
-                f"QPushButton:hover{{border-color:#e6edf3;}}"
+                f"QPushButton{{background:{hex_color};border:2px solid #2d3a50;border-radius:6px;}}"
+                f"QPushButton:hover{{border-color:#eef4ff;}}"
             )
             btn.clicked.connect(lambda checked, c=hex_color: self._pick_color(c))
             color_row.addWidget(btn)
@@ -67,7 +67,7 @@ class _GroupDialog(QDialog):
         self._update_color_selection()
 
         notes_lbl = QLabel("Notes:")
-        notes_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        notes_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         layout.addWidget(notes_lbl)
 
         self._notes = QPlainTextEdit()
@@ -88,11 +88,11 @@ class _GroupDialog(QDialog):
 
     def _update_color_selection(self):
         for btn, hex_color in self._color_btns:
-            border = "#e6edf3" if hex_color == self._selected_color else "#30363d"
+            border = "#eef4ff" if hex_color == self._selected_color else "#2d3a50"
             width = "3px" if hex_color == self._selected_color else "2px"
             btn.setStyleSheet(
                 f"QPushButton{{background:{hex_color};border:{width} solid {border};border-radius:6px;}}"
-                f"QPushButton:hover{{border-color:#e6edf3;}}"
+                f"QPushButton:hover{{border-color:#eef4ff;}}"
             )
 
     def _validate_and_accept(self):
@@ -150,15 +150,15 @@ class GroupsPage(QWidget):
         # Left: group list
         left = QVBoxLayout()
         lbl = QLabel("Groups")
-        lbl.setStyleSheet("font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;")
+        lbl.setStyleSheet("font-size:11px;font-weight:600;color:#9aa8bd;")
         left.addWidget(lbl)
 
         self._list = QListWidget()
         self._list.setStyleSheet(
-            "QListWidget{background:#0d1117;border:1px solid #30363d;border-radius:6px;}"
-            "QListWidget::item{padding:10px 12px;border-bottom:1px solid #21262d;}"
-            "QListWidget::item:selected{background:#1c2128;}"
-            "QListWidget::item:hover{background:#161b22;}"
+            "QListWidget{background:#0d121a;border:1px solid #2d3a50;border-radius:8px;}"
+            "QListWidget::item{padding:10px 12px;border-bottom:1px solid #202938;}"
+            "QListWidget::item:selected{background:#1c2635;}"
+            "QListWidget::item:hover{background:#141c27;}"
         )
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._list.currentItemChanged.connect(self._on_select)
@@ -181,22 +181,22 @@ class GroupsPage(QWidget):
         # Right: group detail + miners in group
         right = QVBoxLayout()
         self._detail_title = QLabel("Select a group")
-        self._detail_title.setStyleSheet("font-size:14px;font-weight:700;color:#e6edf3;background:transparent;")
+        self._detail_title.setStyleSheet("font-size:14px;font-weight:700;color:#eef4ff;background:transparent;")
         right.addWidget(self._detail_title)
 
         self._detail_info = QLabel("")
-        self._detail_info.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        self._detail_info.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         self._detail_info.setWordWrap(True)
         right.addWidget(self._detail_info)
 
         members_lbl = QLabel("Miners in this group:")
-        members_lbl.setStyleSheet("font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;margin-top:8px;")
+        members_lbl.setStyleSheet("font-size:11px;font-weight:600;color:#9aa8bd;margin-top:8px;")
         right.addWidget(members_lbl)
 
         self._members_list = QListWidget()
         self._members_list.setStyleSheet(
-            "QListWidget{background:#0d1117;border:1px solid #30363d;border-radius:6px;}"
-            "QListWidget::item{padding:6px 10px;border-bottom:1px solid #21262d;color:#e6edf3;}"
+            "QListWidget{background:#0d121a;border:1px solid #2d3a50;border-radius:8px;}"
+            "QListWidget::item{padding:6px 10px;border-bottom:1px solid #202938;color:#eef4ff;}"
         )
         right.addWidget(self._members_list, 1)
 
@@ -217,7 +217,7 @@ class GroupsPage(QWidget):
             count = sum(1 for m in all_miners if m.get("group_id") == g["id"])
             item = QListWidgetItem()
             item.setText(f"  {g['name']}  ({count} miners)")
-            item.setForeground(QColor(g.get("color", "#e6edf3")))
+            item.setForeground(QColor(g.get("color", "#eef4ff")))
             item.setData(Qt.ItemDataRole.UserRole, g["id"])
             self._list.addItem(item)
 
@@ -259,12 +259,12 @@ class GroupsPage(QWidget):
             if m.get("group_id") == gid:
                 name = m.get("name") or m["ip"]
                 lbl = QListWidgetItem(f"  {name}  ({m['ip']})")
-                lbl.setForeground(QColor("#e6edf3"))
+                lbl.setForeground(QColor("#eef4ff"))
                 self._members_list.addItem(lbl)
 
         if self._members_list.count() == 0:
             empty = QListWidgetItem("  No miners assigned to this group")
-            empty.setForeground(QColor("#8b949e"))
+            empty.setForeground(QColor("#9aa8bd"))
             self._members_list.addItem(empty)
 
     def _create_group(self):

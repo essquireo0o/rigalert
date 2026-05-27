@@ -188,7 +188,7 @@ class _FirmwareDetailPanel(QWidget):
 
         # Enable/disable action buttons based on firmware type
         can_backup  = fw_type in (FIRMWARE_VNISH,)
-        can_install = fw_type in (FIRMWARE_VNISH, FIRMWARE_STOCK)
+        can_install = fw_type in (FIRMWARE_VNISH, FIRMWARE_BRAIINS, FIRMWARE_STOCK)
         can_restore = fw_type in (FIRMWARE_VNISH, FIRMWARE_BRAIINS)
 
         self._btn_backup.setEnabled(can_backup)
@@ -438,6 +438,12 @@ class FirmwarePage(QWidget):
             return
         dlg = _RestoreFirmwareDialog(ip, miner.display_name, self._main, self)
         dlg.exec()
+
+    def open_install_wizard(self, ip: str):
+        self._show_install_wizard(ip)
+
+    def open_restore_wizard(self, ip: str):
+        self._show_restore_wizard(ip)
 
 
 # ── Install Firmware Dialog ───────────────────────────────────────────────────

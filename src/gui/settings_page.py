@@ -20,11 +20,11 @@ class SettingsPage(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea{border:none;background:#0d1117;}")
+        scroll.setStyleSheet("QScrollArea{border:none;background:#0a0d12;}")
         root.addWidget(scroll)
 
         content = QWidget()
-        content.setStyleSheet("background:#0d1117;")
+        content.setStyleSheet("background:#0a0d12;")
         scroll.setWidget(content)
 
         layout = QVBoxLayout(content)
@@ -133,10 +133,10 @@ class SettingsPage(QWidget):
         gmail_box = QGroupBox("Gmail — App Password Setup")
         gmail_box.setStyleSheet(
             f"QGroupBox{{border:2px solid {BITCOIN_ORANGE};border-radius:8px;"
-            f"margin-top:14px;padding:14px;background:#161b22;}}"
+            f"margin-top:14px;padding:14px;background:#111722;}}"
             f"QGroupBox::title{{color:{BITCOIN_ORANGE};font-size:11px;font-weight:700;"
             f"text-transform:uppercase;letter-spacing:1px;subcontrol-origin:margin;"
-            f"left:10px;padding:0 6px;background:#0d1117;}}"
+            f"left:10px;padding:0 6px;background:#0a0d12;}}"
         )
         gf = QVBoxLayout(gmail_box)
         gf.setSpacing(10)
@@ -149,7 +149,7 @@ class SettingsPage(QWidget):
             "  4. Copy the 16-character password shown and paste it below"
         )
         instructions.setWordWrap(True)
-        instructions.setStyleSheet("color:#8b949e;font-size:12px;line-height:1.6;background:transparent;")
+        instructions.setStyleSheet("color:#9aa8bd;font-size:12px;line-height:1.6;background:transparent;")
         gf.addWidget(instructions)
 
         form = QFormLayout()
@@ -200,7 +200,7 @@ class SettingsPage(QWidget):
             "  3. Copy the 'id' number from 'chat' — that's your Chat ID"
         )
         tg_instructions.setWordWrap(True)
-        tg_instructions.setStyleSheet("color:#8b949e;font-size:12px;line-height:1.6;background:transparent;")
+        tg_instructions.setStyleSheet("color:#9aa8bd;font-size:12px;line-height:1.6;background:transparent;")
         tf.addWidget(tg_instructions)
 
         tg_form = QFormLayout()
@@ -208,7 +208,7 @@ class SettingsPage(QWidget):
         tg_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         self._tg_enabled = QCheckBox("Enable Telegram alerts")
-        self._tg_enabled.setStyleSheet("color:#e6edf3;")
+        self._tg_enabled.setStyleSheet("color:#eef4ff;")
         tg_form.addRow("", self._tg_enabled)
 
         self._tg_token = QLineEdit()
@@ -250,7 +250,7 @@ class SettingsPage(QWidget):
         ef.addRow("Electricity Cost:", self._elec_cost)
 
         self._profit_lbl = QLabel("— Save settings and wait for miner data to estimate profit")
-        self._profit_lbl.setStyleSheet("color:#3fb950;font-size:12px;background:transparent;")
+        self._profit_lbl.setStyleSheet("color:#2fbf71;font-size:12px;background:transparent;")
         self._profit_lbl.setWordWrap(True)
         ef.addRow("Est. Daily Profit:", self._profit_lbl)
 
@@ -264,7 +264,7 @@ class SettingsPage(QWidget):
         btn_save.setFixedHeight(36)
         btn_save.clicked.connect(self._save)
         self._saved_lbl = QLabel("")
-        self._saved_lbl.setStyleSheet("color:#3fb950;font-size:12px;background:transparent;")
+        self._saved_lbl.setStyleSheet("color:#2fbf71;font-size:12px;background:transparent;")
         btn_row.addWidget(btn_save)
         btn_row.addWidget(self._saved_lbl)
         btn_row.addStretch()
@@ -335,11 +335,11 @@ class SettingsPage(QWidget):
 
         if not user or not pwd:
             self._test_lbl.setText("Enter Gmail address and App Password first")
-            self._test_lbl.setStyleSheet("color:#d29922;font-size:12px;background:transparent;")
+            self._test_lbl.setStyleSheet("color:#f2b84b;font-size:12px;background:transparent;")
             return
 
         self._test_lbl.setText("Testing...")
-        self._test_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        self._test_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
 
         from ..alerts.gmail_oauth import test_connection, send_email
         ok, msg = test_connection(user, pwd)
@@ -356,14 +356,14 @@ class SettingsPage(QWidget):
                     self._test_lbl.setText(f"✓ Connected — test email sent to {to}")
                 else:
                     self._test_lbl.setText(f"✗ {send_err}")
-                    self._test_lbl.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
+                    self._test_lbl.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
                     return
             else:
                 self._test_lbl.setText("✓ Connected successfully")
-            self._test_lbl.setStyleSheet("color:#3fb950;font-size:12px;background:transparent;")
+            self._test_lbl.setStyleSheet("color:#2fbf71;font-size:12px;background:transparent;")
         else:
             self._test_lbl.setText(f"✗ {msg}")
-            self._test_lbl.setStyleSheet("color:#f85149;font-size:12px;background:transparent;")
+            self._test_lbl.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
 
     def _refresh_profit(self):
         """Update profitability estimate using current miner data and BTC price from dashboard."""
@@ -391,13 +391,13 @@ class SettingsPage(QWidget):
             parts.append(f"Revenue: ${daily_revenue:,.2f}/day")
         parts.append(f"Power cost: ${daily_elec_cost:,.2f}/day  ({daily_kwh:.1f} kWh @ ${cost_kwh:.4f}/kWh)")
         if btc_price > 0:
-            color = "#3fb950" if daily_profit >= 0 else "#f85149"
+            color = "#2fbf71" if daily_profit >= 0 else "#ff6b6b"
             profit_str = f"${daily_profit:+,.2f}/day"
             self._profit_lbl.setText("  ·  ".join(parts) + f"  →  {profit_str}")
             self._profit_lbl.setStyleSheet(f"color:{color};font-size:12px;background:transparent;")
         else:
             self._profit_lbl.setText("  ·  ".join(parts) + "  (BTC price not yet loaded)")
-            self._profit_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+            self._profit_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
 
     def update_profit_estimate(self):
         """Called externally (e.g., on BTC price update) to refresh the profit display."""
@@ -408,16 +408,16 @@ class SettingsPage(QWidget):
         chat_id = self._tg_chat_id.text().strip()
         if not token or not chat_id:
             self._tg_test_lbl.setText("Enter bot token and chat ID first")
-            self._tg_test_lbl.setStyleSheet("color:#d29922;font-size:12px;background:transparent;")
+            self._tg_test_lbl.setStyleSheet("color:#f2b84b;font-size:12px;background:transparent;")
             return
         self._tg_test_lbl.setText("Sending...")
-        self._tg_test_lbl.setStyleSheet("color:#8b949e;font-size:12px;background:transparent;")
+        self._tg_test_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         import threading
         from ..alerts.telegram_notify import test_telegram
         def run():
             ok, msg = test_telegram(token, chat_id)
             from PyQt6.QtCore import QTimer
-            color = "#3fb950" if ok else "#f85149"
+            color = "#2fbf71" if ok else "#ff6b6b"
             QTimer.singleShot(0, lambda: (
                 self._tg_test_lbl.setText(f"{'✓' if ok else '✗'} {msg}"),
                 self._tg_test_lbl.setStyleSheet(f"color:{color};font-size:12px;background:transparent;"),

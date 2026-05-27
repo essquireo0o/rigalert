@@ -17,7 +17,7 @@ from ..core.miner import MinerData
 from ..core.scanner import MinerScanner
 from ..alerts.scheduler import AlertScheduler
 from ..alerts.price_monitor import PriceMonitor
-from .theme import DARK_QSS, STATUS_COLORS, BITCOIN_ORANGE
+from .theme import DARK_QSS, BITCOIN_ORANGE
 
 
 class NavButton(QPushButton):
@@ -42,7 +42,8 @@ class StatusChip(QLabel):
         self.setObjectName(obj_name)
         self.setProperty("metricChip", "true")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumHeight(32)
+        self.setMinimumHeight(34)
+        self.setMinimumWidth(86)
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
 
 
@@ -119,9 +120,10 @@ class MainWindow(QMainWindow):
         sb = QStatusBar()
         self.setStatusBar(sb)
         self._status_msg = QLabel("Ready")
+        self._status_msg.setObjectName("statusMessage")
         sb.addWidget(self._status_msg)
         self._scan_detail_label = QLabel("Scanner idle")
-        self._scan_detail_label.setStyleSheet("color:#8b949e;font-size:11px;")
+        self._scan_detail_label.setStyleSheet("color:#9aa8bd;font-size:11px;")
         sb.addPermanentWidget(self._scan_detail_label)
         self._scan_progress_bar = QProgressBar()
         self._scan_progress_bar.setMaximumWidth(180)
@@ -130,14 +132,15 @@ class MainWindow(QMainWindow):
         self._scan_progress_bar.setVisible(False)
         sb.addPermanentWidget(self._scan_progress_bar)
         self._last_scan_label = QLabel("")
+        self._last_scan_label.setStyleSheet("color:#9aa8bd;font-size:11px;")
         sb.addPermanentWidget(self._last_scan_label)
 
     def _make_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(0, 8, 0, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(0, 10, 0, 10)
+        layout.setSpacing(5)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Logo — use generated PNG if available, fall back to text
@@ -157,7 +160,7 @@ class MainWindow(QMainWindow):
 
         sep = QWidget()
         sep.setFixedHeight(1)
-        sep.setStyleSheet("background:#21262d;margin:4px 8px;")
+        sep.setStyleSheet("background:#263144;margin:4px 10px;")
         layout.addWidget(sep)
 
         self._nav_btns = []
@@ -165,7 +168,6 @@ class MainWindow(QMainWindow):
             ("⊞", "Dashboard"),
             ("◉", "Miners"),
             ("⚑", "Alerts"),
-            ("⚒", "Firmware"),
             ("⊕", "Groups"),
             ("⚙", "Settings"),
             ("≡", "Logs"),
@@ -181,7 +183,7 @@ class MainWindow(QMainWindow):
         # Version label
         ver = QLabel("v2.0")
         ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ver.setStyleSheet("font-size:10px;color:#484f58;padding:4px;")
+        ver.setStyleSheet("font-size:10px;color:#586174;padding:4px;")
         layout.addWidget(ver)
 
         return sidebar
@@ -189,10 +191,10 @@ class MainWindow(QMainWindow):
     def _make_status_bar(self) -> QWidget:
         bar = QWidget()
         bar.setObjectName("topHeader")
-        bar.setMinimumHeight(62)
-        bar.setMaximumHeight(68)
+        bar.setMinimumHeight(66)
+        bar.setMaximumHeight(72)
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(18, 8, 14, 8)
+        layout.setContentsMargins(20, 9, 16, 9)
         layout.setSpacing(12)
 
         self._title_label = QLabel("RigAlert™ by ING Mining")
@@ -222,23 +224,23 @@ class MainWindow(QMainWindow):
         layout.addWidget(metrics, 0, Qt.AlignmentFlag.AlignRight)
 
         self._chip_hash = StatusChip("statHash")
-        self._chip_hash.setText("0.0 TH/s")
+        self._chip_hash.setText("HASH 0.0 TH/s")
         self._chip_hash.setToolTip("Total fleet hashrate")
         self._chip_power = StatusChip("statPower")
-        self._chip_power.setText("0 W")
+        self._chip_power.setText("POWER 0 W")
         self._chip_power.setToolTip("Total fleet power draw")
         self._chip_efficiency = StatusChip("statEfficiency")
-        self._chip_efficiency.setText("— W/TH")
+        self._chip_efficiency.setText("EFF — W/TH")
         self._chip_efficiency.setToolTip("Fleet efficiency (Watts per TH/s)")
         self._chip_btc = StatusChip("statBtc")
-        self._chip_btc.setText("₿ —")
+        self._chip_btc.setText("BTC —")
         self._chip_btc.setToolTip("Live Bitcoin price (CoinGecko)")
         self._chip_online = StatusChip("statOnline")
-        self._chip_online.setText("0 Online")
+        self._chip_online.setText("● 0 Online")
         self._chip_offline = StatusChip("statOffline")
-        self._chip_offline.setText("0 Offline")
+        self._chip_offline.setText("● 0 Offline")
         self._chip_warn = StatusChip("statWarning")
-        self._chip_warn.setText("0 Warnings")
+        self._chip_warn.setText("● 0 Warnings")
 
         for chip in [self._chip_hash, self._chip_power, self._chip_efficiency,
                      self._chip_btc, self._chip_online, self._chip_offline, self._chip_warn]:
@@ -264,9 +266,11 @@ class MainWindow(QMainWindow):
         self._settings_page = SettingsPage(self)
         self._logs_page = LogsPage(self)
 
+        # Keep the visible nav indexes aligned with the current sidebar entries.
+        # Firmware is still kept alive for data updates, but the existing nav
+        # configuration does not expose it as a top-level destination.
         for page in [self._dashboard_page, self._miners_page, self._alerts_page,
-                     self._firmware_page, self._groups_page, self._settings_page,
-                     self._logs_page]:
+                     self._groups_page, self._settings_page, self._logs_page]:
             self._stack.addWidget(page)
 
     # ── Navigation ─────────────────────────────────────────────────────────
@@ -310,11 +314,11 @@ class MainWindow(QMainWindow):
             return
         if price > 0:
             sign = "▲" if change_24h >= 0 else "▼"
-            self._chip_btc.setText(f"₿ ${price:,.0f} {sign}{abs(change_24h):.1f}%")
+            self._chip_btc.setText(f"BTC ${price:,.0f} {sign}{abs(change_24h):.1f}%")
             self._dashboard_page.set_btc_price(price)
             self._settings_page.update_profit_estimate()
         else:
-            self._chip_btc.setText("₿ —")
+            self._chip_btc.setText("BTC —")
 
     def _setup_tray(self):
         self._tray = QSystemTrayIcon(self)
@@ -540,25 +544,25 @@ class MainWindow(QMainWindow):
         offline = sum(1 for m in miners if m.status == "offline")
 
         if total_ths >= 1000:
-            self._chip_hash.setText(f"{total_ths/1000:.2f} PH/s")
+            self._chip_hash.setText(f"HASH {total_ths/1000:.2f} PH/s")
         else:
-            self._chip_hash.setText(f"{total_ths:.1f} TH/s")
+            self._chip_hash.setText(f"HASH {total_ths:.1f} TH/s")
 
         if total_watts >= 1000:
-            self._chip_power.setText(f"{total_watts/1000:.2f} kW")
+            self._chip_power.setText(f"POWER {total_watts/1000:.2f} kW")
         elif total_watts > 0:
-            self._chip_power.setText(f"{total_watts:,.0f} W")
+            self._chip_power.setText(f"POWER {total_watts:,.0f} W")
         else:
-            self._chip_power.setText("— W")
+            self._chip_power.setText("POWER — W")
 
         if total_ths > 0 and total_watts > 0:
-            self._chip_efficiency.setText(f"{total_watts/total_ths:.1f} W/TH")
+            self._chip_efficiency.setText(f"EFF {total_watts/total_ths:.1f} W/TH")
         else:
-            self._chip_efficiency.setText("— W/TH")
+            self._chip_efficiency.setText("EFF — W/TH")
 
-        self._chip_online.setText(f"{online} Online")
-        self._chip_offline.setText(f"{offline} Offline")
-        self._chip_warn.setText(f"{warning} Warnings")
+        self._chip_online.setText(f"● {online} Online")
+        self._chip_offline.setText(f"● {offline} Offline")
+        self._chip_warn.setText(f"● {warning} Warnings")
 
     @pyqtSlot(str)
     def _show_popup(self, text: str, ip: str = ""):

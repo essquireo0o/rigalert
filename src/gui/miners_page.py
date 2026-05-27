@@ -16,54 +16,73 @@ from ..core.miner import MinerData
 from .theme import STATUS_COLORS, BITCOIN_ORANGE
 
 
+def _find_chrome_hwnd(timeout: float = 6.0) -> int:
+    """Poll until a Chrome window is the foreground window, return its hwnd."""
+    buf = ctypes.create_unicode_buffer(512)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
+        title = buf.value.lower()
+        if "chrome" in title or "192.168" in title or "miner" in title:
+            return hwnd
+        time.sleep(0.15)
+    # Return whatever is foreground as last resort
+    return ctypes.windll.user32.GetForegroundWindow()
+
+
 def _auto_unlock_vnish(password: str):
-    """Wait for Chrome to load, find the gold VNISH Unlock button by color, click it, type password."""
-    time.sleep(2.8)
+    """Wait for Chrome to load VNISH, find the gold Unlock button, click it, type password."""
+    time.sleep(1.5)
     try:
         from PIL import ImageGrab
 
-        # Get the foreground window (Chrome that just opened)
-        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        hwnd = _find_chrome_hwnd(timeout=7.0)
+
+        # Bring Chrome to front before screenshotting
+        ctypes.windll.user32.ShowWindow(hwnd, 9)   # SW_RESTORE
+        ctypes.windll.user32.SetForegroundWindow(hwnd)
+        time.sleep(0.5)
+
         rect = ctypes.wintypes.RECT()
         ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
         wl, wt, wr, wb = rect.left, rect.top, rect.right, rect.bottom
         win_w = wr - wl
         win_h = wb - wt
 
-        # Search top-right 35% of window for the gold Unlock button
-        sx, sy = wl + win_w * 6 // 10, wt
-        ex, ey = wr, wt + win_h // 4
+        # Search top-right 40% of window for the gold Unlock button
+        sx = wl + win_w * 55 // 100
+        sy = wt
+        ex = wr
+        ey = wt + win_h * 22 // 100
         shot = ImageGrab.grab(bbox=(sx, sy, ex, ey))
-        data = list(shot.getdata())
+        pixels = list(shot.getdata())
         sw = ex - sx
 
         gxs, gys = [], []
-        for i in range(0, len(data), 3):
-            px = data[i]
+        for idx, px in enumerate(pixels):
             r, g, b = px[0], px[1], px[2]
-            # Gold/amber VNISH button: high red, mid-high green, very low blue
-            if r > 185 and 130 <= g <= 215 and b < 65:
-                gxs.append(sx + (i % sw))
-                gys.append(sy + (i // sw))
+            # Gold/amber VNISH Unlock button: high red, mid green, near-zero blue
+            if r > 175 and 110 <= g <= 220 and b < 70:
+                gxs.append(sx + (idx % sw))
+                gys.append(sy + (idx // sw))
 
-        if len(gxs) >= 12:
+        if len(gxs) >= 10:
             cx = sum(gxs) // len(gxs)
             cy = sum(gys) // len(gys)
         else:
-            # Fallback: approximate button position (84% across, 13% down)
+            # Fallback: ~84% across, ~13% down from top of window
             cx = wl + int(win_w * 0.84)
             cy = wt + int(win_h * 0.13)
 
-        # Bring Chrome to front and click the Unlock button
-        ctypes.windll.user32.SetForegroundWindow(hwnd)
-        time.sleep(0.2)
+        # Click the Unlock button
         ctypes.windll.user32.SetCursorPos(cx, cy)
-        time.sleep(0.1)
+        time.sleep(0.12)
         ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)  # LEFTDOWN
-        time.sleep(0.05)
+        time.sleep(0.06)
         ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)  # LEFTUP
 
-        time.sleep(0.8)  # Wait for password modal to appear
+        time.sleep(0.9)  # Wait for password modal
 
         # Type the password
         for ch in password:
@@ -71,7 +90,7 @@ def _auto_unlock_vnish(password: str):
             ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
             time.sleep(0.04)
             ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
-            time.sleep(0.02)
+            time.sleep(0.03)
 
         # Press Enter
         ctypes.windll.user32.keybd_event(0x0D, 0, 0, 0)
@@ -85,14 +104,14 @@ def _auto_unlock_vnish(password: str):
 class StatusItem(QTableWidgetItem):
     def __init__(self, status: str):
         super().__init__(f"  {status.upper()}")
-        color = STATUS_COLORS.get(status, "#8b949e")
+        color = STATUS_COLORS.get(status, "#9aa8bd")
         self.setForeground(QColor(color))
         self.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         self.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
 
 
 class ColorItem(QTableWidgetItem):
-    def __init__(self, text: str, color: str = "#e6edf3"):
+    def __init__(self, text: str, color: str = "#eef4ff"):
         super().__init__(text)
         self.setForeground(QColor(color))
         self.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
@@ -167,10 +186,15 @@ class MinersPage(QWidget):
 
         layout.addLayout(title_row)
 
-        # Batch action bar (shown when multiple rows selected)
-        batch_row = QHBoxLayout()
+        # Batch action bar (shown only when rows are selected)
+        self._batch_bar = QWidget()
+        self._batch_bar.setObjectName("batchBar")
+        self._batch_bar.setVisible(False)
+        batch_row = QHBoxLayout(self._batch_bar)
+        batch_row.setContentsMargins(12, 8, 12, 8)
+        batch_row.setSpacing(8)
         self._batch_lbl = QLabel("Select rows for batch actions:")
-        self._batch_lbl.setStyleSheet("color:#8b949e;font-size:11px;background:transparent;")
+        self._batch_lbl.setStyleSheet("color:#9aa8bd;font-size:11px;background:transparent;")
         batch_row.addWidget(self._batch_lbl)
 
         self._btn_batch_group = QPushButton("Assign Group")
@@ -193,7 +217,7 @@ class MinersPage(QWidget):
         batch_row.addWidget(self._btn_batch_remove)
 
         batch_row.addStretch()
-        layout.addLayout(batch_row)
+        layout.addWidget(self._batch_bar)
 
         # Table
         self._table = QTableWidget(0, len(COLS))
@@ -277,9 +301,9 @@ class MinersPage(QWidget):
 
     def _fill_row(self, row: int, m: MinerData):
         temp = m.display_temp()
-        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#e6edf3")
-                      if temp != "N/A" else "#8b949e")
-        hw_color = "#f85149" if m.hw_error_rate >= 1.0 else "#d29922" if m.hw_error_rate >= 0.5 else "#e6edf3"
+        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#eef4ff")
+                      if temp != "N/A" else "#9aa8bd")
+        hw_color = "#ff6b6b" if m.hw_error_rate >= 1.0 else "#f2b84b" if m.hw_error_rate >= 0.5 else "#eef4ff"
         last = m.last_seen.strftime("%H:%M:%S") if m.last_seen else "—"
         pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0]
         model_short = m.model[:30] if m.model else "—"
@@ -298,9 +322,9 @@ class MinersPage(QWidget):
             ColorItem(f"{m.accepted:,}"),
             ColorItem(f"{m.rejected:,}"),
             ColorItem(f"{m.hw_error_rate:.2f}%", hw_color),
-            ColorItem(pool_short or "—", "#8b949e"),
+            ColorItem(pool_short or "—", "#9aa8bd"),
             ColorItem(m.display_uptime()),
-            ColorItem(last, "#8b949e"),
+            ColorItem(last, "#9aa8bd"),
         ]
         for col, item in enumerate(items):
             item.setData(Qt.ItemDataRole.UserRole, m.ip)
@@ -388,24 +412,38 @@ class MinersPage(QWidget):
         row = index.row()
         ip_item = self._table.item(row, 2)
         if ip_item:
-            self._open_browser(ip_item.text())
+            self._open_details(ip_item.text())
 
     def _open_details(self, ip: str):
         miner = self._main.get_scanner().get_miner(ip)
         if miner:
             from .dialogs import MinerDetailsDialog
-            dlg = MinerDetailsDialog(miner, self)
+            dlg = MinerDetailsDialog(miner, self, main_win=self._main)
             dlg.exec()
         else:
             self._open_browser(ip)
 
     def _open_browser(self, ip: str):
-        import webbrowser
+        import os
+        import subprocess
         import threading
         cfg = self._main.get_config()
-        user = cfg.miner_web_user or "root"
-        pwd  = cfg.miner_web_password or "root"
-        webbrowser.open(f"http://{user}:{pwd}@{ip}")
+        url = f"http://{ip}"
+
+        chrome_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        ]
+        launched = False
+        for path in chrome_paths:
+            if os.path.exists(path):
+                subprocess.Popen([path, url])
+                launched = True
+                break
+        if not launched:
+            subprocess.Popen(["start", "chrome", url], shell=True)
+
         threading.Thread(target=_auto_unlock_vnish,
                          args=(cfg.miner_web_password or "admin",),
                          daemon=True).start()
@@ -498,13 +536,12 @@ class MinersPage(QWidget):
         ips = self._get_selected_ips()
         has = len(ips) > 0
         n = len(ips)
+        self._batch_bar.setVisible(has)
         self._btn_batch_group.setEnabled(has)
         self._btn_batch_export.setEnabled(has)
         self._btn_batch_remove.setEnabled(has)
-        self._batch_lbl.setText(
-            f"{n} miner{'s' if n != 1 else ''} selected — batch actions:" if has
-            else "Select rows (Shift/Ctrl+click) for batch actions:"
-        )
+        if has:
+            self._batch_lbl.setText(f"{n} miner{'s' if n != 1 else ''} selected:")
 
     def _get_selected_ips(self) -> list:
         seen = set()
