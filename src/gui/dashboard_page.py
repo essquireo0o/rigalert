@@ -1,3 +1,6 @@
+import os
+import subprocess
+import threading
 from typing import Dict, Optional
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
@@ -8,6 +11,28 @@ from PyQt6.QtWidgets import (
 
 from ..core.miner import MinerData
 from .theme import STATUS_COLORS, BITCOIN_ORANGE, BG_CARD, TEXT_MUTED, BORDER_COLOR
+
+
+def _launch_chrome(url: str, main_win=None):
+    """Open url in Chrome; if main_win is available also trigger VNish auto-unlock."""
+    chrome_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ]
+    for path in chrome_paths:
+        if os.path.exists(path):
+            subprocess.Popen([path, url])
+            break
+    else:
+        subprocess.Popen(["start", "chrome", url], shell=True)
+    if main_win and hasattr(main_win, "get_config"):
+        try:
+            from ..gui.miners_page import _auto_unlock_vnish
+            pwd = main_win.get_config().miner_web_password or "admin"
+            threading.Thread(target=_auto_unlock_vnish, args=(pwd,), daemon=True).start()
+        except Exception:
+            pass
 
 _CHAIN_COLORS = {
     "running":      "#2fbf71",
@@ -32,12 +57,16 @@ class MinerCard(QFrame):
     def __init__(self, miner: MinerData, parent=None, main_win=None):
         super().__init__(parent)
         self.setObjectName("minerCard")
-        self.setFixedWidth(326)
+        self.setMinimumWidth(270)
         self.setMinimumHeight(206)
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.setToolTip("Double-click to view full details")
         self._miner = miner
         self._main_win = main_win
         self._build(miner)
+
+    def mouseDoubleClickEvent(self, event):
+        self._open_details()
 
     def _build(self, m: MinerData):
         layout = QVBoxLayout(self)
@@ -70,12 +99,13 @@ class MinerCard(QFrame):
         header.addWidget(badge)
         layout.addLayout(header)
 
-        # IP + port (clickable — opens miner web UI in browser)
-        ip_lbl = QLabel(f'<a href="http://{m.ip}" style="color:#9aa8bd;text-decoration:none;">'
+        # IP + port — click opens Chrome
+        ip_lbl = QLabel(f'<a href="http://{m.ip}" style="color:#58a6ff;text-decoration:underline;">'
                         f'{m.ip}:{m.port}</a>')
-        ip_lbl.setOpenExternalLinks(True)
         ip_lbl.setStyleSheet("font-size:11px;font-family:Consolas,monospace;background:transparent;")
-        ip_lbl.setToolTip(f"Click to open http://{m.ip} in browser")
+        ip_lbl.setToolTip(f"Open http://{m.ip} in Chrome")
+        ip_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
+        ip_lbl.linkActivated.connect(lambda url: _launch_chrome(url, self._main_win))
         layout.addWidget(ip_lbl)
 
         # Model name + firmware badge
@@ -98,14 +128,21 @@ class MinerCard(QFrame):
                 else:
                     fw_label, fw_color = None, None
                 if fw_label:
-                    fw_badge = QLabel(fw_label)
-                    fw_badge.setStyleSheet(
-                        f"color:{fw_color};font-size:9px;font-weight:700;"
+                    fw_btn = QPushButton(fw_label)
+                    fw_btn.setFlat(True)
+                    fw_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                    fw_btn.setStyleSheet(
+                        f"QPushButton{{color:{fw_color};font-size:9px;font-weight:700;"
                         f"border:1px solid {fw_color};border-radius:4px;"
-                        f"padding:1px 5px;background:transparent;"
+                        f"padding:1px 5px;background:transparent;}}"
+                        f"QPushButton:hover{{background:rgba(88,166,255,0.15);}}"
                     )
-                    fw_badge.setToolTip(m.firmware)
-                    model_row.addWidget(fw_badge)
+                    fw_btn.setToolTip(f"Open http://{m.ip} in Chrome")
+                    _ip = m.ip
+                    _mw = self._main_win
+                    fw_btn.clicked.connect(lambda _=False, ip=_ip, mw=_mw:
+                                           _launch_chrome(f"http://{ip}", mw))
+                    model_row.addWidget(fw_btn)
             model_row.addStretch()
             layout.addLayout(model_row)
 
@@ -238,19 +275,6 @@ class MinerCard(QFrame):
             al.setWordWrap(True)
             al.setStyleSheet("color:#f2b84b;font-size:10px;background:transparent;")
             layout.addWidget(al)
-
-        # ── Details button ────────────────────────────────────────
-        sep3 = QFrame()
-        sep3.setFrameShape(QFrame.Shape.HLine)
-        sep3.setStyleSheet("color:#202938;background:#202938;max-height:1px;margin-top:2px;")
-        layout.addWidget(sep3)
-
-        btn_details = QPushButton("Details")
-        btn_details.setObjectName("btnSubtle")
-        btn_details.setFixedHeight(24)
-        btn_details.setStyleSheet("font-size:11px;padding:0 10px;border-radius:4px;")
-        btn_details.clicked.connect(self._open_details)
-        layout.addWidget(btn_details)
 
         self._update_border(m.status)
 
@@ -443,9 +467,15 @@ class DashboardPage(QWidget):
     def _relayout(self):
         while self._grid.count():
             self._grid.takeAt(0)
-        cols = max(1, self._grid_container.width() // 342)
+        # Clear old column stretches
+        for c in range(self._grid.columnCount()):
+            self._grid.setColumnStretch(c, 0)
+        cols = max(1, self._grid_container.width() // 300)
         for i, card in enumerate(self._cards.values()):
             self._grid.addWidget(card, i // cols, i % cols)
+        # Cards expand to fill each column equally
+        for c in range(cols):
+            self._grid.setColumnStretch(c, 1)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -30,9 +30,22 @@ class MinerDetailsDialog(QDialog):
         self._main_win = main_win
         self._chain_status_lbl: Optional[QLabel] = None
         self.setWindowTitle(f"Miner Details — {miner.ip}")
-        self.setMinimumWidth(760)
-        self.setMinimumHeight(560)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
+
+        from PyQt6.QtWidgets import QApplication
+        avail = QApplication.primaryScreen().availableGeometry()
+        target_w = min(860, int(avail.width() * 0.80))
+        target_h = min(680, int(avail.height() * 0.82))
+        self.resize(target_w, target_h)
+
         self._build()
+
+        # Center within available screen area (respects taskbar)
+        self.move(
+            avail.left() + (avail.width()  - self.width())  // 2,
+            avail.top()  + (avail.height() - self.height()) // 2,
+        )
 
     def _section(self, title: str) -> QGroupBox:
         gb = QGroupBox(title)
