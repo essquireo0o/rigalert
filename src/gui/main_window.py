@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot
+from PyQt6.QtCore import Qt, QTimer, QSettings, pyqtSlot
 from PyQt6.QtGui import QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QMainWindow, QPushButton,
@@ -76,9 +76,9 @@ class MainWindow(QMainWindow):
         self._setup_refresh_timer()
 
         self._update_title()
-        self.resize(1300, 820)
         self._nav_click(0)
         self._apply_header_responsive()
+        self._restore_geometry()
 
     # ── UI Setup ───────────────────────────────────────────────────────────
 
@@ -659,6 +659,32 @@ class MainWindow(QMainWindow):
         self._show_popup(f"Price Alert\n{message}")
         self._status_msg.setText(f"Price alert: {message}")
 
+    def _restore_geometry(self):
+        settings = QSettings("ING Mining", "RigAlert")
+        saved = settings.value("window/geometry")
+        if saved:
+            self.restoreGeometry(saved)
+            # Validate the restored position is on a visible screen
+            screen = QApplication.screenAt(self.geometry().center())
+            if screen is None:
+                screen = QApplication.primaryScreen()
+            avail = screen.availableGeometry()
+            geo = self.geometry()
+            # Clamp so it fits within the available area
+            x = max(avail.left(), min(geo.x(), avail.right() - geo.width()))
+            y = max(avail.top(), min(geo.y(), avail.bottom() - geo.height()))
+            self.move(x, y)
+        else:
+            # First launch — size and center on primary screen work area
+            self.resize(1300, 820)
+            screen = QApplication.primaryScreen()
+            avail = screen.availableGeometry()
+            self.move(
+                avail.left() + (avail.width() - self.width()) // 2,
+                avail.top() + (avail.height() - self.height()) // 2,
+            )
+
     def closeEvent(self, event):
+        QSettings("ING Mining", "RigAlert").setValue("window/geometry", self.saveGeometry())
         self.hide()
         event.ignore()
