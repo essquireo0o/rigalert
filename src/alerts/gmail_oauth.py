@@ -1,5 +1,6 @@
 """Gmail via SMTP + App Password — no OAuth, no Google Cloud project needed."""
 import smtplib
+import ssl
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -33,11 +34,13 @@ def send_email(gmail_user: str, app_password: str, to: str,
         msg["To"] = ", ".join(recipients)   # RFC-compliant header
         msg.attach(MIMEText(html_body, "html"))
 
+        ctx = ssl.create_default_context()
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
             server.ehlo()
-            server.starttls()
+            server.starttls(context=ctx)
+            server.ehlo()
             server.login(gmail_user, pwd)
-            server.sendmail(gmail_user, recipients, msg.as_string())  # list of addresses
+            server.sendmail(gmail_user, recipients, msg.as_string())
 
         logger.info(f"Email sent to {to}: {subject}")
         return True, ""
@@ -59,9 +62,11 @@ def test_connection(gmail_user: str, app_password: str) -> tuple[bool, str]:
     """Test SMTP credentials. Returns (success, message)."""
     pwd = _clean_password(app_password)
     try:
+        ctx = ssl.create_default_context()
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
             server.ehlo()
-            server.starttls()
+            server.starttls(context=ctx)
+            server.ehlo()
             server.login(gmail_user, pwd)
         return True, "Connected successfully"
     except smtplib.SMTPAuthenticationError:

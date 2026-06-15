@@ -216,7 +216,7 @@ class MainWindow(QMainWindow):
         footer_div.setStyleSheet("background:#21262d;")
         layout.addWidget(footer_div)
 
-        ver = QLabel("v2.0")
+        ver = QLabel("v2.1")
         ver.setObjectName("sidebarVersion")
         ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(ver)
