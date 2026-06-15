@@ -699,25 +699,19 @@ class MainWindow(QMainWindow):
         saved = settings.value("window/geometry")
         if saved:
             self.restoreGeometry(saved)
-            # Validate the restored position is on a visible screen
-            screen = QApplication.screenAt(self.geometry().center())
-            if screen is None:
-                screen = QApplication.primaryScreen()
-            avail = screen.availableGeometry()
-            geo = self.geometry()
-            # Clamp so it fits within the available area
-            x = max(avail.left(), min(geo.x(), avail.right() - geo.width()))
-            y = max(avail.top(), min(geo.y(), avail.bottom() - geo.height()))
-            self.move(x, y)
+            # If not maximized, clamp to visible screen area
+            if not (self.windowState() & Qt.WindowState.WindowMaximized):
+                screen = QApplication.screenAt(self.geometry().center())
+                if screen is None:
+                    screen = QApplication.primaryScreen()
+                avail = screen.availableGeometry()
+                geo = self.geometry()
+                x = max(avail.left(), min(geo.x(), avail.right()  - geo.width()))
+                y = max(avail.top(),  min(geo.y(), avail.bottom() - geo.height()))
+                self.move(x, y)
         else:
-            # First launch — size and center on primary screen work area
-            self.resize(1300, 820)
-            screen = QApplication.primaryScreen()
-            avail = screen.availableGeometry()
-            self.move(
-                avail.left() + (avail.width() - self.width()) // 2,
-                avail.top() + (avail.height() - self.height()) // 2,
-            )
+            # First launch — open maximized (fills usable screen, respects taskbar)
+            self.showMaximized()
 
     def closeEvent(self, event):
         QSettings("ING Mining", "RigAlert").setValue("window/geometry", self.saveGeometry())
