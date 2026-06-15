@@ -343,7 +343,7 @@ class MainWindow(QMainWindow):
     def _setup_refresh_timer(self):
         self._ui_timer = QTimer(self)
         self._ui_timer.timeout.connect(self._refresh_ui)
-        self._ui_timer.start(5000)
+        self._ui_timer.start(30_000)   # 30s — UI already updates via signals; this is just the fallback
 
     def show_normal(self):
         self.show()

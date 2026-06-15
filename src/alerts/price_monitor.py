@@ -13,8 +13,8 @@ _COINGECKO_URL = (
     "?ids={ids}&vs_currencies=usd&include_24hr_change=true"
 )
 
-# Poll every 5 minutes — well within CoinGecko free tier (15 calls/min)
-_POLL_INTERVAL_MS = 300_000
+# Poll every 15 minutes — reduces background CPU/network; still timely for price alerts
+_POLL_INTERVAL_MS = 900_000
 
 
 def _fetch_prices(coin_ids: list[str]) -> dict:

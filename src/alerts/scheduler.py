@@ -42,29 +42,29 @@ class AlertScheduler(QThread):
         cfg = self.config
         now = datetime.now()
         h = now.hour
-        m = now.minute
 
         should_send = False
         interval_label = ""
 
         if cfg.alert_interval == "hourly":
-            # Send at the top of each hour (minute 0)
-            if m == 0 and self._last_sent_hour != h:
+            # Send once per hour — fires on first check within any new hour
+            if self._last_sent_hour != h:
                 should_send = True
                 interval_label = "Hourly"
                 self._last_sent_hour = h
 
         elif cfg.alert_interval == "12hour":
-            # Send at 00:00 and 12:00
+            # Send at 00:xx and 12:xx — fires on first check within those hours
             half = 0 if h < 12 else 1
-            if h in (0, 12) and m == 0 and self._last_sent_half != (now.day, half):
+            if h in (0, 12) and self._last_sent_half != (now.day, half):
                 should_send = True
                 interval_label = "12-Hour"
                 self._last_sent_half = (now.day, half)
 
         elif cfg.alert_interval == "daily":
-            # Send once per day at configured hour
-            if h == cfg.alert_send_hour and m == 0 and self._last_sent_hour != now.day:
+            # Send once per day at or after the configured hour
+            # Fires on first check at/after alert_send_hour so a late app start still delivers
+            if h >= cfg.alert_send_hour and self._last_sent_hour != now.day:
                 should_send = True
                 interval_label = "Daily"
                 self._last_sent_hour = now.day

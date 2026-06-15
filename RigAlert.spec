@@ -1,4 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+_runtime_cache = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
+                              'RigAlert', 'runtime')
 
 
 a = Analysis(
@@ -34,5 +37,5 @@ exe = EXE(
     entitlements_file=None,
     icon=['rigalert.ico'],
     upx_exclude=[],
-    runtime_tmpdir=None,
+    runtime_tmpdir=_runtime_cache,  # reuse extracted files → fast restart after first launch
 )

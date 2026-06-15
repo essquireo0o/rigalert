@@ -94,6 +94,7 @@ class MinerScanner(QThread):
         self._known_ips: List[ScanTarget] = []
         self._dead_until: Dict[str, float] = {}
         self._last_signatures: Dict[str, tuple] = {}
+        self._last_db_write: Dict[str, float] = {}   # ip → epoch of last save_reading call
 
     def set_known_miners(self, miners: List[Dict]):
         self._known_ips = [
@@ -142,14 +143,19 @@ class MinerScanner(QThread):
 
     def run(self):
         self._running = True
+        self.setPriority(self.Priority.LowPriority)   # don't compete with the UI or other apps
         while self._running:
-            auto_refresh = getattr(self.config, "auto_refresh_enabled", True)
-            if self._scan_requested or auto_refresh:
-                full_network = self._full_scan_requested or self._should_full_scan()
-                self._scan_requested = False
-                self._full_scan_requested = False
-                self._cancel_requested = False
-                self._do_scan(full_network=full_network)
+            try:
+                auto_refresh = getattr(self.config, "auto_refresh_enabled", True)
+                if self._scan_requested or auto_refresh:
+                    full_network = self._full_scan_requested or self._should_full_scan()
+                    self._scan_requested = False
+                    self._full_scan_requested = False
+                    self._cancel_requested = False
+                    self._do_scan(full_network=full_network)
+            except Exception:
+                logger.exception("Scanner loop crashed — will retry after interval")
+                self.scan_finished.emit(len(self._miners))
 
             interval = max(1, int(getattr(self.config, "scan_interval_seconds", 60)))
             for _ in range(interval * 10):
@@ -279,13 +285,21 @@ class MinerScanner(QThread):
                     break
 
                 completed += 1
-                miner, elapsed, err = future.result()
+                try:
+                    miner, elapsed, err = future.result()
+                except Exception as exc:
+                    logger.warning("Probe result error for %s: %s", target.ip, exc)
+                    miner, elapsed, err = None, 0.0, str(exc)
+
                 if elapsed >= slow_after:
                     slow_count += 1
                     logger.info("Slow miner response: %s full probe %.2fs (%s)", target.ip, elapsed, err or "ok")
 
                 if miner is not None:
-                    self._handle_miner_online(miner, target, newly_discovered)
+                    try:
+                        self._handle_miner_online(miner, target, newly_discovered)
+                    except Exception as exc:
+                        logger.warning("Handle online error for %s: %s", target.ip, exc)
                     found += 1
                 else:
                     self._handle_miner_miss(target)
@@ -320,7 +334,11 @@ class MinerScanner(QThread):
                     break
 
                 completed += 1
-                ok, elapsed, err = future.result()
+                try:
+                    ok, elapsed, err = future.result()
+                except Exception as exc:
+                    logger.warning("Quick probe result error for %s: %s", ip, exc)
+                    ok, elapsed, err = False, 0.0, str(exc)
                 if ok:
                     responding.add(ip)
                 elif dead_backoff:
@@ -335,6 +353,18 @@ class MinerScanner(QThread):
             pool.shutdown(wait=not self._cancel_requested, cancel_futures=True)
         return responding, completed, slow_count
 
+    def _should_save_reading(self, miner: MinerData, prev) -> bool:
+        """Only write to DB when status changed, it's the first reading, or 5 min elapsed."""
+        now = time.time()
+        last = self._last_db_write.get(miner.ip, 0)
+        if now - last >= 300:          # at least every 5 minutes
+            return True
+        if prev is None:               # first time we see this miner
+            return True
+        if miner.status != prev.status:
+            return True
+        return False
+
     def _handle_miner_online(self, miner: MinerData, target: ScanTarget, newly_discovered: bool):
         prev = self._miners.get(target.ip)
         if target.name:
@@ -342,7 +372,9 @@ class MinerScanner(QThread):
         miner.hashrate_ideal = target.min_ths or self.config.default_min_ths
         self._check_alerts(miner, prev, self.config)
         self._miners[target.ip] = miner
-        self.db.save_reading(miner)
+        if self._should_save_reading(miner, prev):
+            self.db.save_reading(miner)
+            self._last_db_write[miner.ip] = time.time()
         if newly_discovered:
             self.db.upsert_miner(target.ip, target.port, "", self.config.default_min_ths)
             if not any(t.ip == target.ip for t in self._known_ips):

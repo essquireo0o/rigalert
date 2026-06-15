@@ -12,5 +12,9 @@ echo Build complete! EXE is at: dist\RigAlert.exe
 echo.
 echo Copying to Desktop...
 copy /Y "dist\RigAlert.exe" "%USERPROFILE%\Desktop\RigAlert.exe"
-echo Done! Run RigAlert.exe from your Desktop.
+echo Copying to source folder...
+copy /Y "dist\RigAlert.exe" "%~dp0RigAlert.exe"
+echo Done! EXE is at:
+echo   - %USERPROFILE%\Desktop\RigAlert.exe
+echo   - %~dp0RigAlert.exe
 pause
