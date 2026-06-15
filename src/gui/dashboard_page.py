@@ -35,17 +35,17 @@ def _launch_chrome(url: str, main_win=None):
             pass
 
 _CHAIN_COLORS = {
-    "running":      "#2fbf71",
-    "normal":       "#2fbf71",
-    "active":       "#2fbf71",
-    "mining":       "#2fbf71",
-    "stopped":      "#f2b84b",
-    "idle":         "#f2b84b",
+    "running":      "#3fb950",
+    "normal":       "#3fb950",
+    "active":       "#3fb950",
+    "mining":       "#3fb950",
+    "stopped":      "#d29922",
+    "idle":         "#d29922",
     "auto-tuning":  "#58a6ff",
-    "disabled":     "#9aa8bd",
-    "failure":      "#ff6b6b",
-    "dead":         "#ff6b6b",
-    "error":        "#ff6b6b",
+    "disabled":     "#8b949e",
+    "failure":      "#f85149",
+    "dead":         "#f85149",
+    "error":        "#f85149",
 }
 
 
@@ -70,210 +70,256 @@ class MinerCard(QFrame):
 
     def _build(self, m: MinerData):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(6)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(0)
 
-        # ── Header ────────────────────────────────────────────────
+        STATUS_DOT = {
+            "online":  "#3fb950",
+            "warning": "#d29922",
+            "offline": "#f85149",
+            "error":   "#f85149",
+        }
+        STATUS_LABEL = {
+            "online":  ("ONLINE",  "#3fb950", "#0b1a10", "#1a3d24"),
+            "warning": ("WARNING", "#d29922", "#1a1400", "#3d2e00"),
+            "offline": ("OFFLINE", "#f85149", "#190909", "#3d1515"),
+            "error":   ("FAILURE", "#f85149", "#190909", "#3d1515"),
+        }
+
+        # ── Header row ─────────────────────────────────────────────
         header = QHBoxLayout()
-        header.setSpacing(6)
+        header.setSpacing(8)
+        header.setContentsMargins(0, 0, 0, 8)
 
+        dot_col = STATUS_DOT.get(m.status, "#484f58")
         dot = QLabel("●")
-        dot.setStyleSheet(f"color:{STATUS_COLORS.get(m.status, '#9aa8bd')};font-size:10px;background:transparent;")
+        dot.setStyleSheet(
+            f"color:{dot_col};font-size:8px;background:transparent;"
+            f"padding-top:4px;"
+        )
+        dot.setFixedWidth(12)
         header.addWidget(dot)
 
         name = QLabel(m.display_name)
         name.setObjectName("cardName")
-        name.setStyleSheet("font-size:13px;font-weight:700;color:#eef4ff;background:transparent;")
+        name.setStyleSheet(
+            "font-size:13px;font-weight:600;color:#e6edf3;background:transparent;"
+        )
         header.addWidget(name, 1)
 
-        if m.status == "online":
-            bs = "background:#174f35;color:#8ff0b2;"
-        elif m.status == "warning":
-            bs = "background:#664b1f;color:#ffe2a3;"
-        elif m.status == "offline":
-            bs = "background:#6e2b2b;color:#ffd2d2;"
-        else:
-            bs = "background:#263144;color:#9aa8bd;"
-        badge = QLabel(m.status.upper())
-        badge.setStyleSheet(f"{bs}font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;")
+        sl = STATUS_LABEL.get(m.status, ("UNKNOWN", "#484f58", "#0d1117", "#21262d"))
+        badge = QLabel(sl[0])
+        badge.setStyleSheet(
+            f"color:{sl[1]};background:{sl[2]};border:1px solid {sl[3]};"
+            f"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;"
+        )
         header.addWidget(badge)
         layout.addLayout(header)
 
-        # IP + port — click opens Chrome
-        ip_lbl = QLabel(f'<a href="http://{m.ip}" style="color:#58a6ff;text-decoration:underline;">'
-                        f'{m.ip}:{m.port}</a>')
-        ip_lbl.setStyleSheet("font-size:11px;font-family:Consolas,monospace;background:transparent;")
-        ip_lbl.setToolTip(f"Open http://{m.ip} in Chrome")
+        # ── IP + firmware row ──────────────────────────────────────
+        ip_row = QHBoxLayout()
+        ip_row.setSpacing(8)
+        ip_row.setContentsMargins(0, 0, 0, 10)
+
+        ip_lbl = QLabel(
+            f'<a href="http://{m.ip}" '
+            f'style="color:#58a6ff;text-decoration:none;font-family:Consolas,monospace;">'
+            f'{m.ip}</a>'
+        )
+        ip_lbl.setStyleSheet("font-size:11px;background:transparent;")
+        ip_lbl.setToolTip(f"Open {m.ip} in Chrome")
         ip_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
         ip_lbl.linkActivated.connect(lambda url: _launch_chrome(url, self._main_win))
-        layout.addWidget(ip_lbl)
+        ip_row.addWidget(ip_lbl)
 
-        # Model name + firmware badge
-        if m.model or m.firmware:
-            model_row = QHBoxLayout()
-            model_row.setSpacing(6)
-            if m.model:
-                mdl = QLabel(m.model)
-                mdl.setStyleSheet(f"color:{BITCOIN_ORANGE};font-size:11px;font-weight:600;background:transparent;")
-                mdl.setWordWrap(False)
-                model_row.addWidget(mdl)
-            if m.firmware:
-                fw_lower = m.firmware.lower()
-                if "vnish" in fw_lower:
-                    fw_label, fw_color = "VNish", "#58a6ff"
-                elif "braiins" in fw_lower or "bosminer" in fw_lower or "bos+" in fw_lower:
-                    fw_label, fw_color = "Braiins OS", "#2fbf71"
-                elif fw_lower:
-                    fw_label, fw_color = "Stock", "#9aa8bd"
-                else:
-                    fw_label, fw_color = None, None
-                if fw_label:
-                    fw_btn = QPushButton(fw_label)
-                    fw_btn.setFlat(True)
-                    fw_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                    fw_btn.setStyleSheet(
-                        f"QPushButton{{color:{fw_color};font-size:9px;font-weight:700;"
-                        f"border:1px solid {fw_color};border-radius:4px;"
-                        f"padding:1px 5px;background:transparent;}}"
-                        f"QPushButton:hover{{background:rgba(88,166,255,0.15);}}"
-                    )
-                    fw_btn.setToolTip(f"Open http://{m.ip} in Chrome")
-                    _ip = m.ip
-                    _mw = self._main_win
-                    fw_btn.clicked.connect(lambda _=False, ip=_ip, mw=_mw:
-                                           _launch_chrome(f"http://{ip}", mw))
-                    model_row.addWidget(fw_btn)
-            model_row.addStretch()
-            layout.addLayout(model_row)
+        if m.firmware:
+            fw_lower = m.firmware.lower()
+            if "vnish" in fw_lower:
+                fw_label, fw_color = "VNish", "#58a6ff"
+            elif "braiins" in fw_lower or "bosminer" in fw_lower or "bos+" in fw_lower:
+                fw_label, fw_color = "Braiins OS", "#3fb950"
+            elif fw_lower:
+                fw_label, fw_color = "Stock", "#8b949e"
+            else:
+                fw_label, fw_color = None, None
+            if fw_label:
+                _ip = m.ip
+                _mw = self._main_win
+                fw_btn = QPushButton(fw_label)
+                fw_btn.setFlat(True)
+                fw_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                fw_btn.setMaximumHeight(20)
+                fw_btn.setStyleSheet(
+                    f"QPushButton{{color:{fw_color};font-size:9px;font-weight:700;"
+                    f"border:1px solid {fw_color};border-radius:3px;"
+                    f"padding:0px 6px;background:transparent;min-height:0;}}"
+                    f"QPushButton:hover{{background:rgba(88,166,255,0.12);}}"
+                )
+                fw_btn.setToolTip(f"Open {m.ip} in Chrome")
+                fw_btn.clicked.connect(lambda _=False, ip=_ip, mw=_mw:
+                                       _launch_chrome(f"http://{ip}", mw))
+                ip_row.addWidget(fw_btn)
 
-        # Separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color:#202938;background:#202938;max-height:1px;")
-        layout.addWidget(sep)
+        ip_row.addStretch()
+        layout.addLayout(ip_row)
 
-        # ── Hashrate ──────────────────────────────────────────────
-        hr_row = QHBoxLayout()
+        # ── Divider ────────────────────────────────────────────────
+        div = QFrame()
+        div.setFrameShape(QFrame.Shape.HLine)
+        div.setStyleSheet("background:#21262d;max-height:1px;border:none;")
+        div.setFixedHeight(1)
+        layout.addWidget(div)
+
+        # ── Hashrate ───────────────────────────────────────────────
+        hr_container = QWidget()
+        hr_container.setStyleSheet("background:transparent;")
+        hr_lay = QVBoxLayout(hr_container)
+        hr_lay.setContentsMargins(0, 10, 0, 6)
+        hr_lay.setSpacing(4)
+
+        hr_top = QHBoxLayout()
+        hr_top.setSpacing(6)
         hs_str = m.display_hashrate()
         parts = hs_str.split(" ", 1)
-        hs_num = parts[0]
-        hs_unit = parts[1] if len(parts) > 1 else ""
-        hr_val = QLabel(hs_num)
-        hr_val.setStyleSheet(f"font-size:22px;font-weight:700;color:{BITCOIN_ORANGE};background:transparent;")
-        hr_row.addWidget(hr_val)
-        hr_unit = QLabel(hs_unit)
-        hr_unit.setStyleSheet("font-size:11px;color:#9aa8bd;padding-bottom:4px;background:transparent;")
-        hr_row.addWidget(hr_unit)
-        hr_row.addStretch()
+        hr_val = QLabel(parts[0])
+        hr_val.setStyleSheet(
+            f"font-size:26px;font-weight:700;color:{BITCOIN_ORANGE};"
+            f"font-family:'Segoe UI',monospace;background:transparent;"
+        )
+        hr_top.addWidget(hr_val)
+        if len(parts) > 1:
+            hr_unit = QLabel(parts[1])
+            hr_unit.setStyleSheet(
+                "font-size:12px;color:#8b949e;padding-bottom:6px;background:transparent;"
+            )
+            hr_top.addWidget(hr_unit)
+        hr_top.addStretch()
 
-        # Miner state badge (if VNISH)
         if m.miner_state:
             state_col = _chain_color(m.miner_state)
             state_lbl = QLabel(m.miner_state.upper())
             state_lbl.setStyleSheet(
-                f"color:{state_col};font-size:9px;font-weight:700;"
-                f"border:1px solid {state_col};border-radius:4px;padding:1px 5px;background:transparent;"
+                f"color:{state_col};font-size:9px;font-weight:700;letter-spacing:0.5px;"
+                f"border:1px solid {state_col};border-radius:3px;"
+                f"padding:1px 6px;background:transparent;"
             )
-            hr_row.addWidget(state_lbl)
+            hr_top.addWidget(state_lbl)
 
-        layout.addLayout(hr_row)
+        hr_lay.addLayout(hr_top)
 
-        # Hashrate progress bar
+        # Hashrate bar
         pct = int(m.hashrate_pct())
         hr_bar = QProgressBar()
         hr_bar.setValue(pct)
-        hr_bar.setMaximumHeight(5)
+        hr_bar.setFixedHeight(3)
         hr_bar.setTextVisible(False)
-        bar_color = "#2fbf71" if pct >= 95 else "#f2b84b" if pct >= 80 else "#ff6b6b"
+        bar_color = "#3fb950" if pct >= 95 else "#d29922" if pct >= 75 else "#f85149"
         hr_bar.setStyleSheet(
-            f"QProgressBar{{background:#202938;border:none;border-radius:3px;height:5px;}}"
-            f"QProgressBar::chunk{{background:{bar_color};border-radius:3px;}}"
+            f"QProgressBar{{background:#21262d;border:none;border-radius:2px;}}"
+            f"QProgressBar::chunk{{background:{bar_color};border-radius:2px;}}"
         )
-        layout.addWidget(hr_bar)
+        hr_lay.addWidget(hr_bar)
+        layout.addWidget(hr_container)
 
-        # ── Metrics grid ──────────────────────────────────────────
+        # ── Metrics grid ───────────────────────────────────────────
         grid = QGridLayout()
-        grid.setSpacing(3)
+        grid.setSpacing(0)
+        grid.setVerticalSpacing(5)
+        grid.setHorizontalSpacing(20)
         grid.setContentsMargins(0, 4, 0, 0)
 
-        def add_metric(row, col, key, val, val_color="#eef4ff"):
+        def add_metric(row, col, key, val, val_color="#c9d1d9"):
             k = QLabel(key)
-            k.setStyleSheet("color:#9aa8bd;font-size:10px;background:transparent;")
+            k.setStyleSheet(
+                "color:#484f58;font-size:9px;font-weight:700;"
+                "letter-spacing:0.6px;background:transparent;"
+            )
             v = QLabel(val)
-            v.setStyleSheet(f"color:{val_color};font-size:11px;font-weight:500;background:transparent;")
-            grid.addWidget(k, row, col * 2)
-            grid.addWidget(v, row, col * 2 + 1)
+            v.setStyleSheet(
+                f"color:{val_color};font-size:12px;font-weight:500;"
+                f"background:transparent;font-family:'Segoe UI',monospace;"
+            )
+            grid.addWidget(k, row * 2,     col)
+            grid.addWidget(v, row * 2 + 1, col)
 
         temp = m.display_temp()
-        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#eef4ff")
-                      if temp != "N/A" else "#9aa8bd")
+        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#c9d1d9")
+                      if temp != "N/A" else "#8b949e")
 
-        # Fan display: show individual fans if available
         if m.fan_speeds and len(m.fan_speeds) > 1:
-            fan_str = "  ".join(f"{rpm:,}" for rpm in m.fan_speeds[:4])
-            fan_str += " RPM"
+            fan_vals = [f"{rpm//1000:.1f}k" for rpm in m.fan_speeds[:4]]
+            fan_str = "  ".join(fan_vals) + " RPM"
         else:
             fan_str = m.display_fan()
 
-        add_metric(0, 0, "TEMP", temp, temp_color)
-        add_metric(0, 1, "FAN", fan_str)
-        add_metric(1, 0, "ACCEPT", f"{m.accepted:,}")
-        add_metric(1, 1, "HW ERR", f"{m.hw_error_rate:.2f}%",
-                   "#ff6b6b" if m.hw_error_rate >= 1.0 else "#eef4ff")
-        add_metric(2, 0, "UPTIME", m.display_uptime())
-        pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0][:20]
-        add_metric(2, 1, "POOL", pool_short or "—")
+        hw_color = "#f85149" if m.hw_error_rate >= 1.0 else "#c9d1d9"
+        pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0][:18] or "—"
 
+        add_metric(0, 0, "TEMP",    temp,                       temp_color)
+        add_metric(0, 1, "FAN",     fan_str)
+        add_metric(1, 0, "ACCEPT",  f"{m.accepted:,}")
+        add_metric(1, 1, "HW ERR",  f"{m.hw_error_rate:.2f}%", hw_color)
+        add_metric(2, 0, "UPTIME",  m.display_uptime())
+        add_metric(2, 1, "POOL",    pool_short)
         if m.total_acn > 0:
             add_metric(3, 0, "ASICS", str(m.total_acn))
         if m.fan_pwm > 0:
-            add_metric(3, 1, "FAN PWM", f"{m.fan_pwm}%")
+            add_metric(3, 1, "PWM", f"{m.fan_pwm}%")
 
         layout.addLayout(grid)
 
-        # ── Chain status ──────────────────────────────────────────
+        # ── Chain status ───────────────────────────────────────────
         if m.chain_states:
-            sep2 = QFrame()
-            sep2.setFrameShape(QFrame.Shape.HLine)
-            sep2.setStyleSheet("color:#202938;background:#202938;max-height:1px;margin-top:2px;")
-            layout.addWidget(sep2)
+            chain_div = QFrame()
+            chain_div.setFrameShape(QFrame.Shape.HLine)
+            chain_div.setStyleSheet("background:#21262d;max-height:1px;border:none;")
+            chain_div.setFixedHeight(1)
+            chain_widget = QWidget()
+            chain_widget.setStyleSheet("background:transparent;")
+            chain_lay = QHBoxLayout(chain_widget)
+            chain_lay.setContentsMargins(0, 8, 0, 0)
+            chain_lay.setSpacing(16)
 
-            chain_row = QHBoxLayout()
-            chain_row.setSpacing(4)
-            ch_lbl = QLabel("CHAINS:")
-            ch_lbl.setStyleSheet("color:#9aa8bd;font-size:10px;background:transparent;")
-            chain_row.addWidget(ch_lbl)
+            ch_title = QLabel("CHAINS")
+            ch_title.setStyleSheet(
+                "color:#484f58;font-size:9px;font-weight:700;"
+                "letter-spacing:0.6px;background:transparent;"
+            )
+            chain_lay.addWidget(ch_title)
 
             for i, state in enumerate(m.chain_states):
                 col = _chain_color(state)
-                acn = m.chain_acns[i] if i < len(m.chain_acns) else 0
+                acn  = m.chain_acns[i]       if i < len(m.chain_acns)       else 0
                 chip = m.chain_temps_chip[i] if i < len(m.chain_temps_chip) else 0
-                tip_parts = [f"Ch{i+1}: {state}"]
-                if acn > 0:
-                    tip_parts.append(f"{acn} ASICs")
-                if chip > 0:
-                    tip_parts.append(f"{chip:.0f}°C")
-                ch_dot = QLabel(f"● Ch{i+1}")
-                ch_dot.setStyleSheet(f"color:{col};font-size:10px;font-weight:600;background:transparent;")
-                ch_dot.setToolTip("  ·  ".join(tip_parts))
-                chain_row.addWidget(ch_dot)
+                tip  = f"Chain {i+1}: {state}"
+                if acn  > 0: tip += f"  ·  {acn} ASICs"
+                if chip > 0: tip += f"  ·  {chip:.0f}°C"
+                ch_dot = QLabel(f"● {i+1}")
+                ch_dot.setStyleSheet(
+                    f"color:{col};font-size:11px;font-weight:700;background:transparent;"
+                )
+                ch_dot.setToolTip(tip)
+                chain_lay.addWidget(ch_dot)
 
-            chain_row.addStretch()
-            layout.addLayout(chain_row)
+            chain_lay.addStretch()
+            layout.addWidget(chain_div)
+            layout.addWidget(chain_widget)
 
-            # Show chain faults
             for fault in m.chain_faults_summary():
-                fl = QLabel(f"⚠ {fault}")
+                fl = QLabel(f"⚠  {fault}")
                 fl.setWordWrap(True)
-                fl.setStyleSheet("color:#ff6b6b;font-size:10px;background:transparent;margin-left:4px;")
+                fl.setStyleSheet(
+                    "color:#f85149;font-size:10px;background:transparent;padding-top:2px;"
+                )
                 layout.addWidget(fl)
 
-        # ── Alert messages ────────────────────────────────────────
-        non_chain_alerts = [a for a in m.alerts if not a.startswith("Ch")]
-        for alert in non_chain_alerts[:2]:
-            al = QLabel(f"⚠ {alert}")
+        # ── Active alerts ──────────────────────────────────────────
+        for alert in [a for a in m.alerts if not a.startswith("Ch")][:2]:
+            al = QLabel(f"⚠  {alert}")
             al.setWordWrap(True)
-            al.setStyleSheet("color:#f2b84b;font-size:10px;background:transparent;")
+            al.setStyleSheet(
+                "color:#d29922;font-size:10px;background:transparent;padding-top:3px;"
+            )
             layout.addWidget(al)
 
         self._update_border(m.status)
@@ -300,7 +346,8 @@ class MinerCard(QFrame):
 
 
 _STAT_CHIP_QSS = (
-    "QFrame#statChip{background:#111722;border:1px solid #2d3a50;border-radius:8px;padding:4px 12px;}"
+    "QFrame#statChip{background:#161b22;border:1px solid #21262d;"
+    "border-radius:6px;padding:4px 14px;}"
 )
 
 _BTC_PER_TH_PER_DAY = 9.5e-8  # rough network estimate; updated manually as difficulty changes
@@ -387,40 +434,22 @@ class DashboardPage(QWidget):
         stats_row = QHBoxLayout()
         stats_row.setSpacing(12)
 
-        chip_hs, _, self._stat_hs = _make_stat_chip()
-        chip_hs.layout().itemAt(0).widget().setText("HASHRATE")
-        self._stat_hs.setText("— TH/s")
-        self._stat_hs.setStyleSheet(f"color:{BITCOIN_ORANGE};font-size:16px;font-weight:700;background:transparent;")
+        def _chip(label_txt, val_txt, val_color):
+            chip, key_lbl, val_lbl = _make_stat_chip()
+            key_lbl.setText(label_txt)
+            val_lbl.setText(val_txt)
+            val_lbl.setStyleSheet(
+                f"color:{val_color};font-size:15px;font-weight:700;background:transparent;"
+            )
+            return chip, val_lbl
 
-        chip_pw, _, self._stat_pw = _make_stat_chip()
-        chip_pw.layout().itemAt(0).widget().setText("POWER")
-        self._stat_pw.setText("— W")
-        self._stat_pw.setStyleSheet("color:#68b8ff;font-size:16px;font-weight:700;background:transparent;")
-
-        chip_ef, _, self._stat_ef = _make_stat_chip()
-        chip_ef.layout().itemAt(0).widget().setText("EFFICIENCY")
-        self._stat_ef.setText("— W/TH")
-        self._stat_ef.setStyleSheet("color:#bda8ff;font-size:16px;font-weight:700;background:transparent;")
-
-        chip_rev, _, self._stat_rev = _make_stat_chip()
-        chip_rev.layout().itemAt(0).widget().setText("EST. DAILY REV")
-        self._stat_rev.setText("—")
-        self._stat_rev.setStyleSheet(f"color:#2fbf71;font-size:16px;font-weight:700;background:transparent;")
-
-        chip_on, _, self._stat_on = _make_stat_chip()
-        chip_on.layout().itemAt(0).widget().setText("ONLINE")
-        self._stat_on.setText("0")
-        self._stat_on.setStyleSheet("color:#2fbf71;font-size:16px;font-weight:700;background:transparent;")
-
-        chip_warn, _, self._stat_warn = _make_stat_chip()
-        chip_warn.layout().itemAt(0).widget().setText("WARNINGS")
-        self._stat_warn.setText("0")
-        self._stat_warn.setStyleSheet("color:#f2b84b;font-size:16px;font-weight:700;background:transparent;")
-
-        chip_off, _, self._stat_off = _make_stat_chip()
-        chip_off.layout().itemAt(0).widget().setText("OFFLINE")
-        self._stat_off.setText("0")
-        self._stat_off.setStyleSheet("color:#ff6b6b;font-size:16px;font-weight:700;background:transparent;")
+        chip_hs,   self._stat_hs   = _chip("HASHRATE",       "— TH/s", "#e3a030")
+        chip_pw,   self._stat_pw   = _chip("POWER",          "— W",    "#58a6ff")
+        chip_ef,   self._stat_ef   = _chip("EFFICIENCY",     "— W/TH", "#8957e5")
+        chip_rev,  self._stat_rev  = _chip("EST. DAILY REV", "—",      "#3fb950")
+        chip_on,   self._stat_on   = _chip("ONLINE",         "0",      "#3fb950")
+        chip_warn, self._stat_warn = _chip("WARNINGS",       "0",      "#d29922")
+        chip_off,  self._stat_off  = _chip("OFFLINE",        "0",      "#f85149")
 
         for chip in [chip_hs, chip_pw, chip_ef, chip_rev, chip_on, chip_warn, chip_off]:
             stats_row.addWidget(chip)

@@ -21,10 +21,10 @@ from .theme import DARK_QSS, BITCOIN_ORANGE
 
 
 class NavButton(QPushButton):
-    def __init__(self, icon_text: str, tooltip: str, parent=None):
-        super().__init__(icon_text, parent)
+    def __init__(self, icon: str, label: str, parent=None):
+        super().__init__(f"  {icon}   {label}", parent)
         self.setObjectName("navBtn")
-        self.setToolTip(tooltip)
+        self.setToolTip(label)
         self.setCheckable(False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._active = False
@@ -139,30 +139,60 @@ class MainWindow(QMainWindow):
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(0, 10, 0, 10)
-        layout.setSpacing(5)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # Logo — use generated PNG if available, fall back to text
-        logo = QLabel()
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo.setStyleSheet("padding:10px 0;background:transparent;")
+        # ── Brand block ────────────────────────────────────────────
+        brand_block = QWidget()
+        brand_block.setStyleSheet(
+            "background:#010409;border-bottom:1px solid #21262d;"
+        )
+        brand_block.setMinimumHeight(58)
+        brand_block.setMaximumHeight(58)
+        bb_layout = QHBoxLayout(brand_block)
+        bb_layout.setContentsMargins(14, 0, 12, 0)
+        bb_layout.setSpacing(10)
+
         base = getattr(sys, "_MEIPASS", os.path.join(os.path.dirname(__file__), "..", "..", ""))
         logo_path = os.path.join(base, "rigalert_preview.png")
         pix = QPixmap(logo_path)
+        logo_lbl = QLabel()
+        logo_lbl.setObjectName("sidebarLogo")
+        logo_lbl.setStyleSheet("background:transparent;padding:0;")
         if not pix.isNull():
-            logo.setPixmap(pix.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio,
-                                      Qt.TransformationMode.SmoothTransformation))
+            logo_lbl.setPixmap(pix.scaled(30, 30, Qt.AspectRatioMode.KeepAspectRatio,
+                                          Qt.TransformationMode.SmoothTransformation))
         else:
-            logo.setText("⛏")
-            logo.setStyleSheet(f"font-size:26px;color:{BITCOIN_ORANGE};padding:12px 0;")
-        layout.addWidget(logo)
+            logo_lbl.setText("⛏")
+            logo_lbl.setStyleSheet(f"font-size:22px;color:{BITCOIN_ORANGE};background:transparent;")
+        logo_lbl.setFixedSize(30, 30)
+        bb_layout.addWidget(logo_lbl)
 
-        sep = QWidget()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet("background:#263144;margin:4px 10px;")
-        layout.addWidget(sep)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(1)
+        brand_text.setContentsMargins(0, 0, 0, 0)
+        app_name = QLabel("RigAlert™")
+        app_name.setStyleSheet(
+            f"color:{BITCOIN_ORANGE};font-size:14px;font-weight:700;background:transparent;"
+        )
+        by_line = QLabel("ING Mining")
+        by_line.setStyleSheet("color:#484f58;font-size:10px;background:transparent;")
+        brand_text.addWidget(app_name)
+        brand_text.addWidget(by_line)
+        bb_layout.addLayout(brand_text)
+        bb_layout.addStretch()
+        layout.addWidget(brand_block)
 
+        # ── Nav section label ──────────────────────────────────────
+        nav_section = QLabel("NAVIGATION")
+        nav_section.setStyleSheet(
+            "color:#30363d;font-size:9px;font-weight:700;letter-spacing:1px;"
+            "padding:20px 16px 6px 20px;background:transparent;"
+        )
+        layout.addWidget(nav_section)
+
+        # ── Nav buttons ────────────────────────────────────────────
         self._nav_btns = []
         nav_items = [
             ("⊞", "Dashboard"),
@@ -172,18 +202,23 @@ class MainWindow(QMainWindow):
             ("⚙", "Settings"),
             ("≡", "Logs"),
         ]
-        for txt, tip in nav_items:
-            btn = NavButton(txt, tip)
+        for icon, label in nav_items:
+            btn = NavButton(icon, label)
             btn.clicked.connect(lambda checked, i=len(self._nav_btns): self._nav_click(i))
             layout.addWidget(btn)
             self._nav_btns.append(btn)
 
         layout.addStretch()
 
-        # Version label
+        # ── Footer ─────────────────────────────────────────────────
+        footer_div = QWidget()
+        footer_div.setFixedHeight(1)
+        footer_div.setStyleSheet("background:#21262d;")
+        layout.addWidget(footer_div)
+
         ver = QLabel("v2.0")
+        ver.setObjectName("sidebarVersion")
         ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ver.setStyleSheet("font-size:10px;color:#586174;padding:4px;")
         layout.addWidget(ver)
 
         return sidebar
@@ -191,8 +226,8 @@ class MainWindow(QMainWindow):
     def _make_status_bar(self) -> QWidget:
         bar = QWidget()
         bar.setObjectName("topHeader")
-        bar.setMinimumHeight(66)
-        bar.setMaximumHeight(72)
+        bar.setMinimumHeight(58)
+        bar.setMaximumHeight(58)
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(20, 9, 16, 9)
         layout.setSpacing(12)
