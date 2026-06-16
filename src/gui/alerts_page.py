@@ -112,7 +112,7 @@ class AlertsPage(QWidget):
 
         hour_row = QHBoxLayout()
         hour_row.setContentsMargins(26, 0, 0, 0)
-        lbl = QLabel("Daily send time (0–23 hour, local time):")
+        lbl = QLabel("Daily send time (0–23 hour, US Eastern Time):")
         lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         hour_row.addWidget(lbl)
         self._send_hour = QSpinBox()

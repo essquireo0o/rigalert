@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Callable, List, Optional
+from zoneinfo import ZoneInfo
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -10,6 +11,8 @@ from ..core.config import AppConfig
 from ..core.miner import MinerData
 
 logger = logging.getLogger(__name__)
+
+_EASTERN = ZoneInfo("America/New_York")  # handles EST/EDT automatically
 
 
 class AlertScheduler(QThread):
@@ -40,7 +43,7 @@ class AlertScheduler(QThread):
 
     def _check_and_send(self):
         cfg = self.config
-        now = datetime.now()
+        now = datetime.now(_EASTERN)
         h = now.hour
 
         should_send = False

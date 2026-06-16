@@ -38,7 +38,7 @@ class AppConfig:
 
     # Alert schedule
     alert_interval: str = "daily"   # hourly | 12hour | daily
-    alert_send_hour: int = 8        # for daily: hour of day (0-23)
+    alert_send_hour: int = 5        # for daily: hour of day in US Eastern Time (0-23)
     enable_email_alerts: bool = False
     enable_popup_alerts: bool = True
 
