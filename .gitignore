@@ -18,6 +18,8 @@ generate_icon.py
 *.code-workspace
 .vscode/
 .idea/
+.vs/
+.claude/
 
 # Config files with credentials (saved on user's Desktop at runtime)
 ing_miner_watch_config.json
