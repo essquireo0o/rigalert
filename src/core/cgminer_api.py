@@ -86,9 +86,25 @@ class CGMinerAPI:
         return self._send("summary") is not None
 
     def fetch_all(self) -> Dict[str, Any]:
-        """Fetch all miner data. Returns empty dict if miner is unreachable."""
+        """Fetch all miner data. Uses a single pipe connection when firmware supports it,
+        falling back to sequential commands otherwise."""
         out: Dict[str, Any] = {}
 
+        # Single connection for all 5 commands — CGMiner pipe syntax
+        pipe = self._send("summary+devs+pools+stats+version")
+        if pipe and "SUMMARY" in pipe and pipe["SUMMARY"]:
+            out["summary"] = pipe["SUMMARY"][0]
+            if pipe.get("DEVS"):
+                out["devs"] = pipe["DEVS"]
+            if pipe.get("POOLS"):
+                out["pools"] = pipe["POOLS"]
+            if pipe.get("STATS"):
+                out["stats"] = pipe["STATS"]
+            if pipe.get("VERSION") and pipe["VERSION"]:
+                out["version"] = pipe["VERSION"][0]
+            return out
+
+        # Fallback: sequential individual commands (older/non-standard firmware)
         s = self._send("summary")
         if not s or "SUMMARY" not in s or not s["SUMMARY"]:
             return out

@@ -48,8 +48,9 @@ class StatusChip(QLabel):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, start_minimized: bool = False):
         super().__init__()
+        self._start_minimized = start_minimized
         self.config = AppConfig.load()
         self.db = Database()
 
@@ -700,7 +701,7 @@ class MainWindow(QMainWindow):
         if saved:
             self.restoreGeometry(saved)
             # If not maximized, clamp to visible screen area
-            if not (self.windowState() & Qt.WindowState.WindowMaximized):
+            if not self._start_minimized and not (self.windowState() & Qt.WindowState.WindowMaximized):
                 screen = QApplication.screenAt(self.geometry().center())
                 if screen is None:
                     screen = QApplication.primaryScreen()
@@ -709,7 +710,7 @@ class MainWindow(QMainWindow):
                 x = max(avail.left(), min(geo.x(), avail.right()  - geo.width()))
                 y = max(avail.top(),  min(geo.y(), avail.bottom() - geo.height()))
                 self.move(x, y)
-        else:
+        elif not self._start_minimized:
             # First launch — open maximized (fills usable screen, respects taskbar)
             self.showMaximized()
 

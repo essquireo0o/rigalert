@@ -67,9 +67,12 @@ def main():
     font = QFont("Segoe UI", 10)
     app.setFont(font)
 
+    start_minimized = "--minimized" in sys.argv
+
     from src.gui.main_window import MainWindow
-    window = MainWindow()
-    window.show()
+    window = MainWindow(start_minimized=start_minimized)
+    if not start_minimized:
+        window.show()
 
     sys.exit(app.exec())
 

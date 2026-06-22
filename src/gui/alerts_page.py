@@ -27,7 +27,8 @@ class AlertsPage(QWidget):
         root.addWidget(scroll)
 
         content = QWidget()
-        content.setStyleSheet("background:#0a0d12;")
+        content.setObjectName("alertsContent")
+        content.setStyleSheet("QWidget#alertsContent{background:#0a0d12;}")
         scroll.setWidget(content)
 
         outer = QVBoxLayout(content)
@@ -206,6 +207,18 @@ class AlertsPage(QWidget):
         test_row.addWidget(btn_test)
         test_row.addWidget(self._test_result, 1)
         df.addLayout(test_row)
+
+        daily_row = QHBoxLayout()
+        self._btn_send_daily = QPushButton("Send 24 Hour Report Now")
+        self._btn_send_daily.setObjectName("btnPrimary")
+        self._btn_send_daily.setFixedWidth(210)
+        self._btn_send_daily.setFixedHeight(32)
+        self._btn_send_daily.clicked.connect(self._send_daily_now)
+        self._daily_result = QLabel("")
+        self._daily_result.setStyleSheet("font-size:12px;background:transparent;")
+        daily_row.addWidget(self._btn_send_daily)
+        daily_row.addWidget(self._daily_result, 1)
+        df.addLayout(daily_row)
 
         outer.addWidget(delivery_box)
 
@@ -489,6 +502,41 @@ class AlertsPage(QWidget):
         ok = QListWidgetItem("  No active alerts — fleet is healthy")
         ok.setForeground(QColor("#2fbf71"))
         self._active_list.addItem(ok)
+
+    def _send_daily_now(self):
+        from PyQt6.QtCore import QTimer
+        cfg = self._main.get_config()
+
+        if not cfg.enable_email_alerts:
+            self._daily_result.setText("✗ Email alerts disabled — tick the checkbox above and save")
+            self._daily_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
+            return
+        if not cfg.gmail_user or not cfg.gmail_app_password:
+            self._daily_result.setText("✗ Gmail credentials missing — go to Settings tab")
+            self._daily_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
+            return
+        if not cfg.alert_to_email:
+            self._daily_result.setText("✗ No destination email — go to Settings tab")
+            self._daily_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
+            return
+
+        self._daily_result.setText("Sending...")
+        self._daily_result.setStyleSheet("color:#f2b84b;font-size:12px;background:transparent;")
+
+        from ..alerts.email_builder import build_summary_email
+        from ..alerts.gmail_oauth import send_email
+
+        miners = list(self._main.get_miners().values())
+        subject, html = build_summary_email(miners, "Daily", farm_name=cfg.farm_name)
+        ok, err = send_email(cfg.gmail_user, cfg.gmail_app_password, cfg.alert_to_email, subject, html)
+
+        if ok:
+            self._daily_result.setText(f"✓ Daily report sent to {cfg.alert_to_email}")
+            self._daily_result.setStyleSheet("color:#2fbf71;font-size:12px;background:transparent;")
+            QTimer.singleShot(10000, lambda: self._daily_result.setText(""))
+        else:
+            self._daily_result.setText(f"✗ {err}")
+            self._daily_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
 
     def _send_test(self):
         cfg = self._main.get_config()

@@ -21,8 +21,10 @@ generate_icon.py
 .vs/
 .claude/
 
-# Config files with credentials (saved on user's Desktop at runtime)
+# Config files with credentials (now colocated with the app for portability)
 ing_miner_watch_config.json
+rigalert_config.json
+rigalert.db
 
 # OS
 Thumbs.db

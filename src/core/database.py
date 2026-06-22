@@ -6,10 +6,11 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from .miner import MinerData
+from .app_paths import get_app_dir
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = os.path.join(os.path.expanduser("~"), "Desktop", "rigalert.db")
+_DB_PATH = os.path.join(get_app_dir(), "rigalert.db")
 
 
 class Database:

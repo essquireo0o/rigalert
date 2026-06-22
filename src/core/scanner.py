@@ -347,8 +347,11 @@ class MinerScanner(QThread):
                     slow_count += 1
                     logger.info("Slow IP probe: %s quick probe %.2fs (%s)", ip, elapsed, err or "ok")
 
-                self._emit_progress("discover", ip, completed, total, found_so_far + len(responding),
-                                    started_at, "Full network discovery")
+                # Throttle to avoid flooding the Qt event loop with hundreds of signals
+                if completed % 10 == 0 or completed == total:
+                    self._emit_progress("discover", ip, completed, total,
+                                        found_so_far + len(responding),
+                                        started_at, "Full network discovery")
         finally:
             pool.shutdown(wait=not self._cancel_requested, cancel_futures=True)
         return responding, completed, slow_count

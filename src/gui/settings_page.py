@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -5,6 +9,38 @@ from PyQt6.QtWidgets import (
 )
 
 from .theme import BITCOIN_ORANGE
+
+_STARTUP_FOLDER = os.path.join(
+    os.environ.get("APPDATA", ""),
+    r"Microsoft\Windows\Start Menu\Programs\Startup",
+)
+_SHORTCUT_PATH = os.path.join(_STARTUP_FOLDER, "RigAlert.lnk")
+
+
+def _is_startup_registered() -> bool:
+    return os.path.exists(_SHORTCUT_PATH)
+
+
+def _set_startup_registered(enabled: bool):
+    if enabled:
+        exe = sys.executable
+        ps = (
+            f'$ws = New-Object -ComObject WScript.Shell; '
+            f'$lnk = $ws.CreateShortcut("{_SHORTCUT_PATH}"); '
+            f'$lnk.TargetPath = "{exe}"; '
+            f'$lnk.Arguments = "--minimized"; '
+            f'$lnk.WindowStyle = 7; '
+            f'$lnk.Save()'
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+            capture_output=True,
+        )
+    else:
+        try:
+            os.remove(_SHORTCUT_PATH)
+        except OSError:
+            pass
 
 
 class SettingsPage(QWidget):
@@ -24,7 +60,8 @@ class SettingsPage(QWidget):
         root.addWidget(scroll)
 
         content = QWidget()
-        content.setStyleSheet("background:#0a0d12;")
+        content.setObjectName("settingsContent")
+        content.setStyleSheet("QWidget#settingsContent{background:#0a0d12;}")
         scroll.setWidget(content)
 
         layout = QVBoxLayout(content)
@@ -56,6 +93,23 @@ class SettingsPage(QWidget):
         ff.addRow("Miner Web Password:", self._web_password)
 
         layout.addWidget(farm_box)
+
+        # ── Windows Startup ────────────────────────────────────────
+        startup_box = QGroupBox("Windows Startup")
+        sf = QVBoxLayout(startup_box)
+        sf.setSpacing(8)
+
+        self._startup_chk = QCheckBox("Start RigAlert with Windows  (runs hidden in system tray)")
+        self._startup_chk.setStyleSheet("color:#eef4ff;")
+        self._startup_chk.stateChanged.connect(self._on_startup_toggle)
+        sf.addWidget(self._startup_chk)
+
+        self._startup_path_lbl = QLabel()
+        self._startup_path_lbl.setStyleSheet("color:#5a6a80;font-size:11px;background:transparent;")
+        self._startup_path_lbl.setWordWrap(True)
+        sf.addWidget(self._startup_path_lbl)
+
+        layout.addWidget(startup_box)
 
         # ── Network Scan ───────────────────────────────────────────
         net_box = QGroupBox("Network Scan")
@@ -272,8 +326,21 @@ class SettingsPage(QWidget):
 
         layout.addStretch()
 
+    def _on_startup_toggle(self, state):
+        enabled = self._startup_chk.isChecked()
+        _set_startup_registered(enabled)
+        self._startup_path_lbl.setText(
+            f"Shortcut: {_SHORTCUT_PATH}" if enabled else ""
+        )
+
     def _load(self):
         cfg = self._main.get_config()
+        # Block signals so _on_startup_toggle doesn't fire during load
+        self._startup_chk.blockSignals(True)
+        self._startup_chk.setChecked(_is_startup_registered())
+        self._startup_chk.blockSignals(False)
+        if _is_startup_registered():
+            self._startup_path_lbl.setText(f"Shortcut: {_SHORTCUT_PATH}")
         self._farm_name.setText(cfg.farm_name)
         self._web_user.setText(cfg.miner_web_user)
         self._web_password.setText(cfg.miner_web_password)

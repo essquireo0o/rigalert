@@ -1,15 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 _runtime_cache = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
                               'RigAlert', 'runtime')
 
+# Bundle IANA timezone database so ZoneInfo works on any Windows machine
+_tzdata_datas = collect_data_files('tzdata')
+_tzdata_hidden = collect_submodules('tzdata')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('rigalert.ico', '.'), ('rigalert_preview.png', '.')],
-    hiddenimports=['PyQt6.QtSvg', 'PyQt6.QtPrintSupport'],
+    datas=[('rigalert.ico', '.'), ('rigalert_preview.png', '.')] + _tzdata_datas,
+    hiddenimports=['PyQt6.QtSvg', 'PyQt6.QtPrintSupport', 'zoneinfo', '_zoneinfo'] + _tzdata_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

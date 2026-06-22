@@ -1,7 +1,10 @@
 import logging
 from datetime import datetime
 from typing import Callable, List, Optional
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -12,7 +15,13 @@ from ..core.miner import MinerData
 
 logger = logging.getLogger(__name__)
 
-_EASTERN = ZoneInfo("America/New_York")  # handles EST/EDT automatically
+try:
+    _EASTERN = ZoneInfo("America/New_York")  # handles EST/EDT automatically
+except Exception:
+    # tzdata not available — fall back to UTC-5 (EST, no DST)
+    from datetime import timezone, timedelta
+    _EASTERN = timezone(timedelta(hours=-5))
+    logger.warning("tzdata not found — timezone defaulting to UTC-5 (EST). Rebuild EXE with tzdata installed.")
 
 
 class AlertScheduler(QThread):
