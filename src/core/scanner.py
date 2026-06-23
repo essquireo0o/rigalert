@@ -16,6 +16,79 @@ from .miner import MinerData
 logger = logging.getLogger(__name__)
 
 
+def _vnish_unlock(ip: str, password: str, hdrs: dict, timeout: float = 6.0):
+    """Return a Bearer token from VNish or raise on failure."""
+    import urllib.request, json as _json
+    req = urllib.request.Request(
+        f"http://{ip}/api/v1/unlock",
+        data=_json.dumps({"pw": password}).encode(),
+        method="POST", headers=hdrs,
+    )
+    import urllib.request as _ur
+    with _ur.urlopen(req, timeout=timeout) as r:
+        token = _json.loads(r.read()).get("token", "")
+    if not token:
+        raise ValueError("Unlock returned no token")
+    return token
+
+
+def _vnish_disable_chain(ip: str, password: str, chain_index: int) -> tuple:
+    """Disable a specific hashboard in VNish firmware settings, then reboot.
+
+    chain_index is 0-based (chain 1 = index 0).
+    Adjusts min_operational_chains so VNish doesn't reject the config.
+    """
+    import urllib.request, urllib.error, json as _json
+    hdrs = {"Content-Type": "application/json", "User-Agent": "RigAlert/1.0"}
+    try:
+        token = _vnish_unlock(ip, password, hdrs)
+        auth = dict(hdrs, Authorization=f"Bearer {token}")
+
+        # Read current settings
+        with urllib.request.urlopen(
+            urllib.request.Request(f"http://{ip}/api/v1/settings", headers=auth), timeout=6
+        ) as r:
+            settings = _json.loads(r.read())
+
+        miner_cfg = settings.get("miner", {})
+        chains = miner_cfg.get("overclock", {}).get("chains", [])
+        if chain_index >= len(chains):
+            return False, f"Chain {chain_index} out of range ({len(chains)} chains in settings)"
+
+        chains[chain_index]["disabled"] = True
+
+        # Lower min_operational_chains so VNish accepts running with n-1 boards
+        misc = miner_cfg.get("misc", {})
+        cur_min = misc.get("min_operational_chains", len(chains))
+        if cur_min >= len(chains):
+            misc["min_operational_chains"] = max(1, len(chains) - 1)
+
+        # Apply settings
+        req_post = urllib.request.Request(
+            f"http://{ip}/api/v1/settings",
+            data=_json.dumps({"miner": miner_cfg}).encode(),
+            method="POST", headers=auth,
+        )
+        with urllib.request.urlopen(req_post, timeout=8) as r:
+            _json.loads(r.read())   # {"restart_required":true,"reboot_required":false}
+
+        # Re-unlock (token may have expired) and reboot
+        token2 = _vnish_unlock(ip, password, hdrs)
+        auth2 = dict(hdrs, Authorization=f"Bearer {token2}")
+        urllib.request.urlopen(
+            urllib.request.Request(
+                f"http://{ip}/api/v1/system/reboot",
+                data=b"{}", method="POST", headers=auth2,
+            ), timeout=6
+        ).close()
+
+        return True, f"Chain {chain_index + 1} disabled — miner rebooting"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code}: {e.read(80).decode(errors='replace')}"
+    except Exception as exc:
+        return False, str(exc)
+
+
 def _vnish_http_reboot(ip: str, user: str, password: str) -> tuple:
     """Reboot VNish firmware via the two-step unlock+reboot REST API."""
     import urllib.request, urllib.error, json as _json
@@ -128,6 +201,8 @@ class MinerScanner(QThread):
         self._last_signatures: Dict[str, tuple] = {}
         self._last_db_write: Dict[str, float] = {}   # ip → epoch of last save_reading call
         self._last_reboot: Dict[str, float] = {}    # ip → epoch of last auto-reboot
+        self._board_strikes: Dict[str, Dict[int, int]] = {}   # ip → chain_idx → consecutive overheat count
+        self._board_disabled: Dict[str, set] = {}             # ip → set of 0-based chain indices disabled by us
 
     def set_known_miners(self, miners: List[Dict]):
         self._known_ips = [
@@ -408,6 +483,7 @@ class MinerScanner(QThread):
         miner.hashrate_ideal = target.min_ths or self.config.default_min_ths
         self._check_alerts(miner, prev, self.config)
         self._check_auto_reboot(miner, self.config)
+        self._check_board_overheat(miner, self.config)
         self._miners[target.ip] = miner
         if self._should_save_reading(miner, prev):
             self.db.save_reading(miner)
@@ -511,6 +587,67 @@ class MinerScanner(QThread):
             for a in alerts:
                 self.db.log_event(m.ip, "WARN", a)
                 self.log_event.emit(m.ip, "WARN", a)
+
+    def _check_board_overheat(self, m: MinerData, cfg: AppConfig):
+        """Track per-board chip temps; disable + reboot any board that overheats 3 scans in a row."""
+        if not getattr(cfg, "auto_reboot_enabled", False):
+            return
+        if not m.chain_temps_chip:
+            return
+
+        ip = m.ip
+        threshold_c = float(getattr(cfg, "high_temp_c", 85.0))
+        required_strikes = 3  # consecutive overheating scans before disabling a board
+        cooldown = getattr(cfg, "auto_reboot_cooldown_minutes", 10) * 60
+
+        if ip not in self._board_strikes:
+            self._board_strikes[ip] = {}
+        if ip not in self._board_disabled:
+            self._board_disabled[ip] = set()
+
+        for i, temp in enumerate(m.chain_temps_chip):
+            chain_id = i + 1
+
+            # Skip boards already disabled by us or by the firmware
+            if i in self._board_disabled[ip]:
+                continue
+            if i < len(m.chain_states) and "disab" in m.chain_states[i].lower():
+                self._board_disabled[ip].add(i)
+                continue
+
+            if temp >= threshold_c:
+                strikes = self._board_strikes[ip].get(i, 0) + 1
+                self._board_strikes[ip][i] = strikes
+                warn_msg = f"Board {chain_id} overheat {temp:.0f}°C — strike {strikes}/{required_strikes}"
+                self.db.log_event(ip, "WARN", warn_msg)
+                self.log_event.emit(ip, "WARN", warn_msg)
+
+                if strikes >= required_strikes:
+                    if time.time() - self._last_reboot.get(ip, 0) < cooldown:
+                        continue  # skip — miner just rebooted
+                    self._board_strikes[ip][i] = 0
+                    self._board_disabled[ip].add(i)
+                    self._last_reboot[ip] = time.time()
+
+                    action_msg = (f"AUTO-DISABLE board {chain_id}: {temp:.0f}°C for "
+                                  f"{required_strikes} consecutive scans — disabling + rebooting")
+                    self.db.log_event(ip, "WARN", action_msg)
+                    self.log_event.emit(ip, "WARN", action_msg)
+                    self.reboot_triggered.emit(ip, action_msg)
+
+                    web_pass = getattr(cfg, "miner_web_password", "admin")
+
+                    def _do_disable(ip=ip, pw=web_pass, idx=i, cid=chain_id):
+                        ok, msg = _vnish_disable_chain(ip, pw, idx)
+                        level = "INFO" if ok else "ERROR"
+                        self.db.log_event(ip, level, f"Board {cid} disable: {msg}")
+                        self.log_event.emit(ip, level, f"Board {cid} disable: {msg}")
+
+                    import threading as _t
+                    _t.Thread(target=_do_disable, daemon=True).start()
+            else:
+                # Temp normal — reset this board's strike count
+                self._board_strikes[ip][i] = 0
 
     def _check_auto_reboot(self, m: MinerData, cfg: AppConfig):
         if not getattr(cfg, "auto_reboot_enabled", False):
