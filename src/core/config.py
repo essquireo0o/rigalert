@@ -14,7 +14,7 @@ class AppConfig:
 
     # Miner web UI credentials (used when opening miner in browser)
     miner_web_user: str = "root"
-    miner_web_password: str = "root"
+    miner_web_password: str = "admin"
 
     # Network scan
     start_ip: str = "192.168.1.1"
@@ -63,6 +63,10 @@ class AppConfig:
     telegram_enabled: bool = False
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+
+    # Auto-reboot
+    auto_reboot_enabled: bool = False
+    auto_reboot_cooldown_minutes: int = 10   # minimum minutes between reboots per miner
 
     # Economics
     electricity_cost_kwh: float = 0.07   # USD per kWh

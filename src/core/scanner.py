@@ -16,6 +16,37 @@ from .miner import MinerData
 logger = logging.getLogger(__name__)
 
 
+def _vnish_http_reboot(ip: str, user: str, password: str) -> tuple:
+    """Reboot VNish firmware via the two-step unlock+reboot REST API."""
+    import urllib.request, urllib.error, json as _json
+    hdrs = {"Content-Type": "application/json", "User-Agent": "RigAlert/1.0"}
+    try:
+        # Step 1: unlock — returns {"token": "..."}
+        req = urllib.request.Request(
+            f"http://{ip}/api/v1/unlock",
+            data=_json.dumps({"pw": password}).encode(),
+            method="POST", headers=hdrs,
+        )
+        with urllib.request.urlopen(req, timeout=6) as r:
+            token = _json.loads(r.read()).get("token", "")
+        if not token:
+            return False, "Unlock returned no token"
+
+        # Step 2: reboot — {"after": 3} means miner reboots in 3 s
+        auth_hdrs = dict(hdrs, Authorization=f"Bearer {token}")
+        req2 = urllib.request.Request(
+            f"http://{ip}/api/v1/system/reboot",
+            data=b"{}", method="POST", headers=auth_hdrs,
+        )
+        with urllib.request.urlopen(req2, timeout=6) as r2:
+            body = r2.read()
+            return True, f"Reboot queued: {body.decode(errors='replace')}"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code} — {e.read(80).decode(errors='replace')}"
+    except Exception as exc:
+        return False, str(exc)
+
+
 @dataclass(frozen=True)
 class ScanTarget:
     ip: str
@@ -80,6 +111,7 @@ class MinerScanner(QThread):
     log_event = pyqtSignal(str, str, str)    # ip, level, message
     scan_progress = pyqtSignal(object)       # dict with phase/ip/count/elapsed
     scan_performance = pyqtSignal(object)    # dict with timing metrics
+    reboot_triggered = pyqtSignal(str, str)  # ip, reason
 
     def __init__(self, config: AppConfig, db: Database, parent=None):
         super().__init__(parent)
@@ -95,6 +127,7 @@ class MinerScanner(QThread):
         self._dead_until: Dict[str, float] = {}
         self._last_signatures: Dict[str, tuple] = {}
         self._last_db_write: Dict[str, float] = {}   # ip → epoch of last save_reading call
+        self._last_reboot: Dict[str, float] = {}    # ip → epoch of last auto-reboot
 
     def set_known_miners(self, miners: List[Dict]):
         self._known_ips = [
@@ -374,6 +407,7 @@ class MinerScanner(QThread):
             miner.name = target.name
         miner.hashrate_ideal = target.min_ths or self.config.default_min_ths
         self._check_alerts(miner, prev, self.config)
+        self._check_auto_reboot(miner, self.config)
         self._miners[target.ip] = miner
         if self._should_save_reading(miner, prev):
             self.db.save_reading(miner)
@@ -477,6 +511,54 @@ class MinerScanner(QThread):
             for a in alerts:
                 self.db.log_event(m.ip, "WARN", a)
                 self.log_event.emit(m.ip, "WARN", a)
+
+    def _check_auto_reboot(self, m: MinerData, cfg: AppConfig):
+        if not getattr(cfg, "auto_reboot_enabled", False):
+            return
+
+        cooldown = getattr(cfg, "auto_reboot_cooldown_minutes", 10) * 60
+        if time.time() - self._last_reboot.get(m.ip, 0) < cooldown:
+            return
+
+        reason = ""
+        t = m.temp_chip_max or m.temp_outlet
+        if t >= cfg.high_temp_c > 0:
+            reason = f"Critical overheat: {t:.0f}°C"
+        elif m.best_hashrate() == 0 and m.uptime > 300:
+            reason = "Zero hashrate — miner stopped mining"
+        elif m.has_chain_issues():
+            faults = [f for f in m.chain_faults if f.strip()]
+            reason = f"Chain fault: {', '.join(faults[:2]) or 'dead/failure state'}"
+
+        if not reason:
+            return
+
+        self._last_reboot[m.ip] = time.time()
+        log_msg = f"AUTO-REBOOT triggered — {reason}"
+        self.db.log_event(m.ip, "WARN", log_msg)
+        self.log_event.emit(m.ip, "WARN", log_msg)
+        self.reboot_triggered.emit(m.ip, reason)
+
+        import threading as _t
+        web_user = getattr(cfg, "miner_web_user", "root")
+        web_pass = getattr(cfg, "miner_web_password", "admin")
+        ip, port = m.ip, m.port
+
+        def _do_reboot():
+            # Try CGMiner socket restart first
+            api = CGMinerAPI(ip, port, timeout=10.0)
+            ok, msg = api.restart()
+            if ok:
+                self.db.log_event(ip, "INFO", f"Reboot command sent (socket): {msg}")
+                self.log_event.emit(ip, "INFO", f"Reboot OK (socket): {msg}")
+                return
+            # Fallback: VNish HTTP reboot
+            ok, msg = _vnish_http_reboot(ip, web_user, web_pass)
+            level = "INFO" if ok else "ERROR"
+            self.db.log_event(ip, level, f"Reboot {'OK' if ok else 'FAILED'} (HTTP): {msg}")
+            self.log_event.emit(ip, level, f"Reboot {'OK' if ok else 'FAILED'} (HTTP): {msg}")
+
+        _t.Thread(target=_do_reboot, daemon=True).start()
 
     def scan_network_once(self, start_ip: str, end_ip: str, port: int, timeout: float,
                           max_workers: int = 100,
