@@ -68,7 +68,8 @@ class AppConfig:
     auto_reboot_enabled: bool = False
     auto_reboot_cooldown_minutes: int = 10   # minimum minutes between reboots per miner
     auto_disable_board_enabled: bool = False   # disable overheating board + reboot to restore hashing
-    auto_reboot_overheat_hourly: bool = False  # reboot every hour while any board stays overheated
+    auto_reboot_overheat_hourly: bool = False   # reboot on schedule while any board stays overheated
+    auto_reboot_overheat_minutes: int = 30      # how long a board must overheat before restart fires
 
     # Economics
     electricity_cost_kwh: float = 0.07   # USD per kWh

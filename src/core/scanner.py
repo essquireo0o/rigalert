@@ -662,15 +662,16 @@ class MinerScanner(QThread):
                             _t.Thread(target=_do_disable, daemon=True).start()
                             continue  # board is being disabled — skip hourly check
 
-                # ── Action 2: hourly reboot (independent of disable setting) ─
-                if hourly_enabled and overheat_secs >= 3600:
+                # ── Action 2: timed reboot (independent of disable setting) ──
+                restart_after = getattr(cfg, "auto_reboot_overheat_minutes", 30) * 60
+                if hourly_enabled and overheat_secs >= restart_after:
                     # Reset the timer so the next reboot fires in another hour
                     self._board_overheat_since[ip][i] = time.time()
                     self._last_reboot[ip] = time.time()
 
-                    hours = overheat_secs / 3600
+                    mins = overheat_secs / 60
                     msg = (f"Board {chain_id} overheating {temp:.0f}°C for "
-                           f"{hours:.1f}h — rebooting to keep mining")
+                           f"{mins:.0f}min — rebooting to keep mining")
                     self.db.log_event(ip, "WARN", msg)
                     self.log_event.emit(ip, "WARN", msg)
                     self.reboot_triggered.emit(ip, msg)
