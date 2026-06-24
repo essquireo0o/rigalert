@@ -356,6 +356,30 @@ class AlertsPage(QWidget):
         board_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         rf2.addWidget(board_lbl)
 
+        div2 = QFrame()
+        div2.setFrameShape(QFrame.Shape.HLine)
+        div2.setStyleSheet("background:#2d3a50;max-height:1px;border:none;margin:4px 0;")
+        div2.setFixedHeight(1)
+        rf2.addWidget(div2)
+
+        self._chk_hourly_reboot = QCheckBox(
+            "If a board keeps overheating for 1+ hour, reboot every hour to keep it mining"
+        )
+        self._chk_hourly_reboot.setStyleSheet("color:#eef4ff;font-weight:600;")
+        rf2.addWidget(self._chk_hourly_reboot)
+
+        hourly_lbl = QLabel(
+            "When a hashboard has been above the Critical Temp threshold for a full hour, "
+            "RigAlert reboots the miner to clear any thermal lock-up and restart hashing.  "
+            "Repeats every hour as long as the board stays hot.\n\n"
+            "This overrides the Disable Board setting — the reboot fires even if "
+            "\"Disable overheating board\" is turned off.  Useful for boards that run "
+            "hot but don't need to be permanently taken offline."
+        )
+        hourly_lbl.setWordWrap(True)
+        hourly_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
+        rf2.addWidget(hourly_lbl)
+
         cooldown_row = QHBoxLayout()
         cooldown_lbl = QLabel("Minimum time between reboots per miner:")
         cooldown_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
@@ -421,6 +445,7 @@ class AlertsPage(QWidget):
         self._chk_reboot.setChecked(getattr(cfg, "auto_reboot_enabled", False))
         self._reboot_cooldown.setValue(getattr(cfg, "auto_reboot_cooldown_minutes", 10))
         self._chk_disable_board.setChecked(getattr(cfg, "auto_disable_board_enabled", False))
+        self._chk_hourly_reboot.setChecked(getattr(cfg, "auto_reboot_overheat_hourly", False))
 
         # Price alerts
         self._chk_price.setChecked(cfg.price_alerts_enabled)
@@ -461,6 +486,7 @@ class AlertsPage(QWidget):
         cfg.auto_reboot_enabled          = self._chk_reboot.isChecked()
         cfg.auto_reboot_cooldown_minutes = self._reboot_cooldown.value()
         cfg.auto_disable_board_enabled   = self._chk_disable_board.isChecked()
+        cfg.auto_reboot_overheat_hourly  = self._chk_hourly_reboot.isChecked()
 
         # Price alerts
         cfg.price_alerts_enabled = self._chk_price.isChecked()

@@ -201,8 +201,9 @@ class MinerScanner(QThread):
         self._last_signatures: Dict[str, tuple] = {}
         self._last_db_write: Dict[str, float] = {}   # ip → epoch of last save_reading call
         self._last_reboot: Dict[str, float] = {}    # ip → epoch of last auto-reboot
-        self._board_strikes: Dict[str, Dict[int, int]] = {}   # ip → chain_idx → consecutive overheat count
-        self._board_disabled: Dict[str, set] = {}             # ip → set of 0-based chain indices disabled by us
+        self._board_strikes: Dict[str, Dict[int, int]] = {}     # ip → chain_idx → consecutive overheat count
+        self._board_disabled: Dict[str, set] = {}               # ip → set of 0-based chain indices disabled by us
+        self._board_overheat_since: Dict[str, Dict[int, float]] = {}  # ip → chain_idx → epoch when overheat began
 
     def set_known_miners(self, miners: List[Dict]):
         self._known_ips = [
@@ -589,26 +590,35 @@ class MinerScanner(QThread):
                 self.log_event.emit(m.ip, "WARN", a)
 
     def _check_board_overheat(self, m: MinerData, cfg: AppConfig):
-        """Track per-board chip temps; disable + reboot any board that overheats 3 scans in a row."""
-        if not getattr(cfg, "auto_disable_board_enabled", False):
+        """Per-board overheat logic — two independent actions:
+
+        1. Auto-disable (auto_disable_board_enabled): 3 consecutive hot scans →
+           disable that board in VNish settings + reboot so other boards keep hashing.
+
+        2. Hourly reboot (auto_reboot_overheat_hourly): board stays hot for ≥1 hour →
+           reboot every hour to keep it running.  Fires regardless of auto-disable state.
+        """
+        disable_enabled = getattr(cfg, "auto_disable_board_enabled", False)
+        hourly_enabled  = getattr(cfg, "auto_reboot_overheat_hourly", False)
+        if not disable_enabled and not hourly_enabled:
             return
         if not m.chain_temps_chip:
             return
 
+        import threading as _t
         ip = m.ip
-        threshold_c = float(getattr(cfg, "high_temp_c", 85.0))
-        required_strikes = 3  # consecutive overheating scans before disabling a board
-        cooldown = getattr(cfg, "auto_reboot_cooldown_minutes", 10) * 60
+        threshold_c     = float(getattr(cfg, "high_temp_c", 85.0))
+        required_strikes = 3
+        cooldown        = getattr(cfg, "auto_reboot_cooldown_minutes", 10) * 60
 
-        if ip not in self._board_strikes:
-            self._board_strikes[ip] = {}
-        if ip not in self._board_disabled:
-            self._board_disabled[ip] = set()
+        self._board_strikes.setdefault(ip, {})
+        self._board_disabled.setdefault(ip, set())
+        self._board_overheat_since.setdefault(ip, {})
 
         for i, temp in enumerate(m.chain_temps_chip):
             chain_id = i + 1
 
-            # Skip boards already disabled by us or by the firmware
+            # Skip boards already disabled
             if i in self._board_disabled[ip]:
                 continue
             if i < len(m.chain_states) and "disab" in m.chain_states[i].lower():
@@ -616,38 +626,67 @@ class MinerScanner(QThread):
                 continue
 
             if temp >= threshold_c:
-                strikes = self._board_strikes[ip].get(i, 0) + 1
-                self._board_strikes[ip][i] = strikes
-                warn_msg = f"Board {chain_id} overheat {temp:.0f}°C — strike {strikes}/{required_strikes}"
-                self.db.log_event(ip, "WARN", warn_msg)
-                self.log_event.emit(ip, "WARN", warn_msg)
+                # Mark when this board first went over threshold
+                if i not in self._board_overheat_since[ip]:
+                    self._board_overheat_since[ip][i] = time.time()
+                overheat_secs = time.time() - self._board_overheat_since[ip][i]
 
-                if strikes >= required_strikes:
-                    if time.time() - self._last_reboot.get(ip, 0) < cooldown:
-                        continue  # skip — miner just rebooted
-                    self._board_strikes[ip][i] = 0
-                    self._board_disabled[ip].add(i)
+                # ── Action 1: auto-disable (3-strike rule) ─────────────────
+                if disable_enabled:
+                    strikes = self._board_strikes[ip].get(i, 0) + 1
+                    self._board_strikes[ip][i] = strikes
+                    self.db.log_event(ip, "WARN",
+                        f"Board {chain_id} overheat {temp:.0f}°C — strike {strikes}/{required_strikes}")
+                    self.log_event.emit(ip, "WARN",
+                        f"Board {chain_id} overheat {temp:.0f}°C — strike {strikes}/{required_strikes}")
+
+                    if strikes >= required_strikes:
+                        if time.time() - self._last_reboot.get(ip, 0) >= cooldown:
+                            self._board_strikes[ip][i] = 0
+                            self._board_disabled[ip].add(i)
+                            self._last_reboot[ip] = time.time()
+                            self._board_overheat_since[ip].pop(i, None)
+
+                            msg = (f"AUTO-DISABLE board {chain_id}: {temp:.0f}°C for "
+                                   f"{required_strikes} scans — disabling + rebooting")
+                            self.db.log_event(ip, "WARN", msg)
+                            self.log_event.emit(ip, "WARN", msg)
+                            self.reboot_triggered.emit(ip, msg)
+
+                            web_pass = getattr(cfg, "miner_web_password", "admin")
+                            def _do_disable(ip=ip, pw=web_pass, idx=i, cid=chain_id):
+                                ok, out = _vnish_disable_chain(ip, pw, idx)
+                                lv = "INFO" if ok else "ERROR"
+                                self.db.log_event(ip, lv, f"Board {cid} disable: {out}")
+                                self.log_event.emit(ip, lv, f"Board {cid} disable: {out}")
+                            _t.Thread(target=_do_disable, daemon=True).start()
+                            continue  # board is being disabled — skip hourly check
+
+                # ── Action 2: hourly reboot (independent of disable setting) ─
+                if hourly_enabled and overheat_secs >= 3600:
+                    # Reset the timer so the next reboot fires in another hour
+                    self._board_overheat_since[ip][i] = time.time()
                     self._last_reboot[ip] = time.time()
 
-                    action_msg = (f"AUTO-DISABLE board {chain_id}: {temp:.0f}°C for "
-                                  f"{required_strikes} consecutive scans — disabling + rebooting")
-                    self.db.log_event(ip, "WARN", action_msg)
-                    self.log_event.emit(ip, "WARN", action_msg)
-                    self.reboot_triggered.emit(ip, action_msg)
+                    hours = overheat_secs / 3600
+                    msg = (f"Board {chain_id} overheating {temp:.0f}°C for "
+                           f"{hours:.1f}h — rebooting to keep mining")
+                    self.db.log_event(ip, "WARN", msg)
+                    self.log_event.emit(ip, "WARN", msg)
+                    self.reboot_triggered.emit(ip, msg)
 
                     web_pass = getattr(cfg, "miner_web_password", "admin")
+                    def _do_hourly(ip=ip, pw=web_pass, cid=chain_id):
+                        ok, out = _vnish_http_reboot(ip, "", pw)
+                        lv = "INFO" if ok else "ERROR"
+                        self.db.log_event(ip, lv, f"Hourly overheat reboot board {cid}: {out}")
+                        self.log_event.emit(ip, lv, f"Hourly overheat reboot board {cid}: {out}")
+                    _t.Thread(target=_do_hourly, daemon=True).start()
 
-                    def _do_disable(ip=ip, pw=web_pass, idx=i, cid=chain_id):
-                        ok, msg = _vnish_disable_chain(ip, pw, idx)
-                        level = "INFO" if ok else "ERROR"
-                        self.db.log_event(ip, level, f"Board {cid} disable: {msg}")
-                        self.log_event.emit(ip, level, f"Board {cid} disable: {msg}")
-
-                    import threading as _t
-                    _t.Thread(target=_do_disable, daemon=True).start()
             else:
-                # Temp normal — reset this board's strike count
+                # Temp back to normal — reset both counters for this board
                 self._board_strikes[ip][i] = 0
+                self._board_overheat_since[ip].pop(i, None)
 
     def _check_auto_reboot(self, m: MinerData, cfg: AppConfig):
         if not getattr(cfg, "auto_reboot_enabled", False):
