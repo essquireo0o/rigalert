@@ -590,7 +590,7 @@ class MinerScanner(QThread):
 
     def _check_board_overheat(self, m: MinerData, cfg: AppConfig):
         """Track per-board chip temps; disable + reboot any board that overheats 3 scans in a row."""
-        if not getattr(cfg, "auto_reboot_enabled", False):
+        if not getattr(cfg, "auto_disable_board_enabled", False):
             return
         if not m.chain_temps_chip:
             return

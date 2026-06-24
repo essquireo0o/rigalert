@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup, QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
     QPushButton, QRadioButton, QScrollArea, QSpinBox, QVBoxLayout,
-    QWidget, QLineEdit,
+    QWidget, QLineEdit, QFrame,
 )
 from PyQt6.QtGui import QColor
 
@@ -305,6 +305,72 @@ class AlertsPage(QWidget):
 
         outer.addWidget(price_box)
 
+        # ── Auto-Reboot ────────────────────────────────────────────────────
+        reboot_box = QGroupBox("Auto-Reboot  (VNish / CGMiner firmware)")
+        reboot_box.setStyleSheet(
+            "QGroupBox{border:2px solid #f85149;border-radius:8px;"
+            "margin-top:14px;padding:14px;background:#111722;}"
+            "QGroupBox::title{color:#f85149;font-size:11px;font-weight:700;"
+            "subcontrol-origin:margin;left:10px;padding:0 6px;background:#0a0d12;}"
+        )
+        rf2 = QVBoxLayout(reboot_box)
+        rf2.setSpacing(10)
+
+        self._chk_reboot = QCheckBox("Automatically reboot miner when a critical error is detected")
+        self._chk_reboot.setStyleSheet("color:#eef4ff;font-weight:600;")
+        rf2.addWidget(self._chk_reboot)
+
+        trigger_lbl = QLabel(
+            "Triggers a reboot when any of these occur:\n"
+            "  • Temperature reaches or exceeds the Critical Temp threshold above\n"
+            "  • Hashrate drops to zero while the miner is online (stopped mining)\n"
+            "  • A hashboard enters a fault / dead state (chain fault)\n\n"
+            "Uses the Miner Web Password set in Settings.  Miner reboots itself — "
+            "no power relay needed."
+        )
+        trigger_lbl.setWordWrap(True)
+        trigger_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
+        rf2.addWidget(trigger_lbl)
+
+        # Divider
+        div = QFrame()
+        div.setFrameShape(QFrame.Shape.HLine)
+        div.setStyleSheet("background:#2d3a50;max-height:1px;border:none;margin:4px 0;")
+        div.setFixedHeight(1)
+        rf2.addWidget(div)
+
+        self._chk_disable_board = QCheckBox(
+            "Disable overheating board and reboot to restore hashing"
+        )
+        self._chk_disable_board.setStyleSheet("color:#eef4ff;font-weight:600;")
+        rf2.addWidget(self._chk_disable_board)
+
+        board_lbl = QLabel(
+            "If a single hashboard overheats 3 scans in a row, RigAlert disables only "
+            "that board in VNish firmware settings, then reboots the miner.  The remaining "
+            "boards come back online and continue hashing at reduced capacity — keeping "
+            "revenue flowing instead of losing the whole machine.\n\n"
+            "Requires VNish firmware.  Uses the Miner Web Password set in Settings."
+        )
+        board_lbl.setWordWrap(True)
+        board_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
+        rf2.addWidget(board_lbl)
+
+        cooldown_row = QHBoxLayout()
+        cooldown_lbl = QLabel("Minimum time between reboots per miner:")
+        cooldown_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
+        self._reboot_cooldown = QSpinBox()
+        self._reboot_cooldown.setRange(1, 120)
+        self._reboot_cooldown.setSuffix(" min")
+        self._reboot_cooldown.setFixedWidth(90)
+        self._reboot_cooldown.setToolTip("Prevents reboot loops — miner won't be rebooted again within this window")
+        cooldown_row.addWidget(cooldown_lbl)
+        cooldown_row.addWidget(self._reboot_cooldown)
+        cooldown_row.addStretch()
+        rf2.addLayout(cooldown_row)
+
+        outer.addWidget(reboot_box)
+
         # ── Save ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_save = QPushButton("Save Alert Settings")
@@ -351,6 +417,11 @@ class AlertsPage(QWidget):
         self._chk_email.setChecked(cfg.enable_email_alerts)
         self._chk_popup.setChecked(cfg.enable_popup_alerts)
 
+        # Auto-reboot
+        self._chk_reboot.setChecked(getattr(cfg, "auto_reboot_enabled", False))
+        self._reboot_cooldown.setValue(getattr(cfg, "auto_reboot_cooldown_minutes", 10))
+        self._chk_disable_board.setChecked(getattr(cfg, "auto_disable_board_enabled", False))
+
         # Price alerts
         self._chk_price.setChecked(cfg.price_alerts_enabled)
         self._btc_above.setValue(cfg.btc_alert_above or 0)
@@ -385,6 +456,11 @@ class AlertsPage(QWidget):
         cfg.min_fan_rpm           = self._min_fan_rpm.value()
         cfg.enable_email_alerts   = self._chk_email.isChecked()
         cfg.enable_popup_alerts   = self._chk_popup.isChecked()
+
+        # Auto-reboot
+        cfg.auto_reboot_enabled          = self._chk_reboot.isChecked()
+        cfg.auto_reboot_cooldown_minutes = self._reboot_cooldown.value()
+        cfg.auto_disable_board_enabled   = self._chk_disable_board.isChecked()
 
         # Price alerts
         cfg.price_alerts_enabled = self._chk_price.isChecked()
