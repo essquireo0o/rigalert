@@ -53,6 +53,20 @@ def _chain_color(state: str) -> str:
     return _CHAIN_COLORS.get(state.lower(), "#9aa8bd")
 
 
+_STATUS_DOT = {
+    "online":  "#3fb950",
+    "warning": "#d29922",
+    "offline": "#f85149",
+    "error":   "#f85149",
+}
+_STATUS_LABEL = {
+    "online":  ("ONLINE",  "#3fb950", "#0b1a10", "#1a3d24"),
+    "warning": ("WARNING", "#d29922", "#1a1400", "#3d2e00"),
+    "offline": ("OFFLINE", "#f85149", "#190909", "#3d1515"),
+    "error":   ("FAILURE", "#f85149", "#190909", "#3d1515"),
+}
+
+
 class MinerCard(QFrame):
     def __init__(self, miner: MinerData, parent=None, main_win=None):
         super().__init__(parent)
@@ -63,6 +77,20 @@ class MinerCard(QFrame):
         self.setToolTip("Double-click to view full details")
         self._miner = miner
         self._main_win = main_win
+        # Widget refs for in-place updates (set by _build)
+        self._w_dot = None
+        self._w_badge = None
+        self._w_hr_val = None
+        self._w_hr_unit = None
+        self._w_state_lbl = None
+        self._w_hr_bar = None
+        self._w_temp = None
+        self._w_fan = None
+        self._w_accept = None
+        self._w_hw_err = None
+        self._w_uptime = None
+        self._w_pool = None
+        self._w_chain_dots = []
         self._build(miner)
 
     def mouseDoubleClickEvent(self, event):
@@ -73,31 +101,18 @@ class MinerCard(QFrame):
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(0)
 
-        STATUS_DOT = {
-            "online":  "#3fb950",
-            "warning": "#d29922",
-            "offline": "#f85149",
-            "error":   "#f85149",
-        }
-        STATUS_LABEL = {
-            "online":  ("ONLINE",  "#3fb950", "#0b1a10", "#1a3d24"),
-            "warning": ("WARNING", "#d29922", "#1a1400", "#3d2e00"),
-            "offline": ("OFFLINE", "#f85149", "#190909", "#3d1515"),
-            "error":   ("FAILURE", "#f85149", "#190909", "#3d1515"),
-        }
-
         # ── Header row ─────────────────────────────────────────────
         header = QHBoxLayout()
         header.setSpacing(8)
         header.setContentsMargins(0, 0, 0, 8)
 
-        dot_col = STATUS_DOT.get(m.status, "#484f58")
+        dot_col = _STATUS_DOT.get(m.status, "#484f58")
         dot = QLabel("●")
         dot.setStyleSheet(
-            f"color:{dot_col};font-size:8px;background:transparent;"
-            f"padding-top:4px;"
+            f"color:{dot_col};font-size:8px;background:transparent;padding-top:4px;"
         )
         dot.setFixedWidth(12)
+        self._w_dot = dot
         header.addWidget(dot)
 
         name = QLabel(m.display_name)
@@ -107,12 +122,13 @@ class MinerCard(QFrame):
         )
         header.addWidget(name, 1)
 
-        sl = STATUS_LABEL.get(m.status, ("UNKNOWN", "#484f58", "#0d1117", "#21262d"))
+        sl = _STATUS_LABEL.get(m.status, ("UNKNOWN", "#484f58", "#0d1117", "#21262d"))
         badge = QLabel(sl[0])
         badge.setStyleSheet(
             f"color:{sl[1]};background:{sl[2]};border:1px solid {sl[3]};"
             f"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;"
         )
+        self._w_badge = badge
         header.addWidget(badge)
         layout.addLayout(header)
 
@@ -188,15 +204,22 @@ class MinerCard(QFrame):
             f"font-size:26px;font-weight:700;color:{BITCOIN_ORANGE};"
             f"font-family:'Segoe UI',monospace;background:transparent;"
         )
+        self._w_hr_val = hr_val
         hr_top.addWidget(hr_val)
+
         if len(parts) > 1:
             hr_unit = QLabel(parts[1])
             hr_unit.setStyleSheet(
                 "font-size:12px;color:#8b949e;padding-bottom:6px;background:transparent;"
             )
             hr_top.addWidget(hr_unit)
+            self._w_hr_unit = hr_unit
+        else:
+            self._w_hr_unit = None
+
         hr_top.addStretch()
 
+        self._w_state_lbl = None
         if m.miner_state:
             state_col = _chain_color(m.miner_state)
             state_lbl = QLabel(m.miner_state.upper())
@@ -205,11 +228,11 @@ class MinerCard(QFrame):
                 f"border:1px solid {state_col};border-radius:3px;"
                 f"padding:1px 6px;background:transparent;"
             )
+            self._w_state_lbl = state_lbl
             hr_top.addWidget(state_lbl)
 
         hr_lay.addLayout(hr_top)
 
-        # Hashrate bar
         pct = int(m.hashrate_pct())
         hr_bar = QProgressBar()
         hr_bar.setValue(pct)
@@ -220,6 +243,7 @@ class MinerCard(QFrame):
             f"QProgressBar{{background:#21262d;border:none;border-radius:2px;}}"
             f"QProgressBar::chunk{{background:{bar_color};border-radius:2px;}}"
         )
+        self._w_hr_bar = hr_bar
         hr_lay.addWidget(hr_bar)
         layout.addWidget(hr_container)
 
@@ -243,6 +267,7 @@ class MinerCard(QFrame):
             )
             grid.addWidget(k, row * 2,     col)
             grid.addWidget(v, row * 2 + 1, col)
+            return v
 
         temp = m.display_temp()
         temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#c9d1d9")
@@ -257,12 +282,12 @@ class MinerCard(QFrame):
         hw_color = "#f85149" if m.hw_error_rate >= 1.0 else "#c9d1d9"
         pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0][:18] or "—"
 
-        add_metric(0, 0, "TEMP",    temp,                       temp_color)
-        add_metric(0, 1, "FAN",     fan_str)
-        add_metric(1, 0, "ACCEPT",  f"{m.accepted:,}")
-        add_metric(1, 1, "HW ERR",  f"{m.hw_error_rate:.2f}%", hw_color)
-        add_metric(2, 0, "UPTIME",  m.display_uptime())
-        add_metric(2, 1, "POOL",    pool_short)
+        self._w_temp   = add_metric(0, 0, "TEMP",   temp,                       temp_color)
+        self._w_fan    = add_metric(0, 1, "FAN",    fan_str)
+        self._w_accept = add_metric(1, 0, "ACCEPT", f"{m.accepted:,}")
+        self._w_hw_err = add_metric(1, 1, "HW ERR", f"{m.hw_error_rate:.2f}%", hw_color)
+        self._w_uptime = add_metric(2, 0, "UPTIME", m.display_uptime())
+        self._w_pool   = add_metric(2, 1, "POOL",   pool_short)
         if m.total_acn > 0:
             add_metric(3, 0, "ASICS", str(m.total_acn))
         if m.fan_pwm > 0:
@@ -271,6 +296,7 @@ class MinerCard(QFrame):
         layout.addLayout(grid)
 
         # ── Chain status ───────────────────────────────────────────
+        self._w_chain_dots = []
         if m.chain_states:
             chain_div = QFrame()
             chain_div.setFrameShape(QFrame.Shape.HLine)
@@ -302,6 +328,7 @@ class MinerCard(QFrame):
                 )
                 ch_dot.setToolTip(tip)
                 chain_lay.addWidget(ch_dot)
+                self._w_chain_dots.append(ch_dot)
 
             chain_lay.addStretch()
             layout.addWidget(chain_div)
@@ -326,6 +353,110 @@ class MinerCard(QFrame):
 
         self._update_border(m.status)
 
+    @staticmethod
+    def _needs_rebuild(prev: MinerData, m: MinerData) -> bool:
+        """Return True only when the card's widget structure must change."""
+        prev_alerts = [a for a in prev.alerts if not a.startswith("Ch")][:2]
+        new_alerts  = [a for a in m.alerts   if not a.startswith("Ch")][:2]
+        return (
+            len(prev.chain_states) != len(m.chain_states) or
+            bool(prev.chain_faults_summary()) != bool(m.chain_faults_summary()) or
+            len(prev_alerts) != len(new_alerts) or
+            bool(prev.miner_state) != bool(m.miner_state) or
+            (prev.total_acn > 0) != (m.total_acn > 0) or
+            (prev.fan_pwm > 0) != (m.fan_pwm > 0)
+        )
+
+    def _update_data(self, m: MinerData):
+        """Update all dynamic labels in-place — no widget create/destroy."""
+        # Status dot
+        dot_col = _STATUS_DOT.get(m.status, "#484f58")
+        self._w_dot.setStyleSheet(
+            f"color:{dot_col};font-size:8px;background:transparent;padding-top:4px;"
+        )
+
+        # Badge
+        sl = _STATUS_LABEL.get(m.status, ("UNKNOWN", "#484f58", "#0d1117", "#21262d"))
+        self._w_badge.setText(sl[0])
+        self._w_badge.setStyleSheet(
+            f"color:{sl[1]};background:{sl[2]};border:1px solid {sl[3]};"
+            f"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;"
+        )
+
+        # Hashrate
+        hs_str = m.display_hashrate()
+        parts = hs_str.split(" ", 1)
+        self._w_hr_val.setText(parts[0])
+        if self._w_hr_unit is not None and len(parts) > 1:
+            self._w_hr_unit.setText(parts[1])
+
+        # State badge
+        if self._w_state_lbl is not None and m.miner_state:
+            state_col = _chain_color(m.miner_state)
+            self._w_state_lbl.setText(m.miner_state.upper())
+            self._w_state_lbl.setStyleSheet(
+                f"color:{state_col};font-size:9px;font-weight:700;letter-spacing:0.5px;"
+                f"border:1px solid {state_col};border-radius:3px;"
+                f"padding:1px 6px;background:transparent;"
+            )
+
+        # Progress bar
+        pct = int(m.hashrate_pct())
+        self._w_hr_bar.setValue(pct)
+        bar_color = "#3fb950" if pct >= 95 else "#d29922" if pct >= 75 else "#f85149"
+        self._w_hr_bar.setStyleSheet(
+            f"QProgressBar{{background:#21262d;border:none;border-radius:2px;}}"
+            f"QProgressBar::chunk{{background:{bar_color};border-radius:2px;}}"
+        )
+
+        # Metrics
+        temp = m.display_temp()
+        temp_color = (STATUS_COLORS.get(m.temp_level(75, 85), "#c9d1d9")
+                      if temp != "N/A" else "#8b949e")
+        self._w_temp.setText(temp)
+        self._w_temp.setStyleSheet(
+            f"color:{temp_color};font-size:12px;font-weight:500;"
+            f"background:transparent;font-family:'Segoe UI',monospace;"
+        )
+
+        if m.fan_speeds and len(m.fan_speeds) > 1:
+            fan_vals = [f"{rpm//1000:.1f}k" for rpm in m.fan_speeds[:4]]
+            fan_str = "  ".join(fan_vals) + " RPM"
+        else:
+            fan_str = m.display_fan()
+        self._w_fan.setText(fan_str)
+
+        self._w_accept.setText(f"{m.accepted:,}")
+
+        hw_color = "#f85149" if m.hw_error_rate >= 1.0 else "#c9d1d9"
+        self._w_hw_err.setText(f"{m.hw_error_rate:.2f}%")
+        self._w_hw_err.setStyleSheet(
+            f"color:{hw_color};font-size:12px;font-weight:500;"
+            f"background:transparent;font-family:'Segoe UI',monospace;"
+        )
+
+        self._w_uptime.setText(m.display_uptime())
+        pool_short = m.pool_url.replace("stratum+tcp://", "").split("/")[0][:18] or "—"
+        self._w_pool.setText(pool_short)
+
+        # Chain dots
+        for i, ch_dot in enumerate(self._w_chain_dots):
+            if i >= len(m.chain_states):
+                break
+            state = m.chain_states[i]
+            col = _chain_color(state)
+            ch_dot.setStyleSheet(
+                f"color:{col};font-size:11px;font-weight:700;background:transparent;"
+            )
+            acn  = m.chain_acns[i]       if i < len(m.chain_acns)       else 0
+            chip = m.chain_temps_chip[i] if i < len(m.chain_temps_chip) else 0
+            tip  = f"Chain {i+1}: {state}"
+            if acn  > 0: tip += f"  ·  {acn} ASICs"
+            if chip > 0: tip += f"  ·  {chip:.0f}°C"
+            ch_dot.setToolTip(tip)
+
+        self._update_border(m.status)
+
     def _open_details(self):
         from .dialogs import MinerDetailsDialog
         dlg = MinerDetailsDialog(self._miner, self, main_win=self._main_win)
@@ -337,14 +468,20 @@ class MinerCard(QFrame):
         self.style().polish(self)
 
     def refresh(self, m: MinerData):
-        self._miner = m
-        old_layout = self.layout()
-        if old_layout:
-            while old_layout.count():
-                item = old_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-        self._build(m)
+        if self._needs_rebuild(self._miner, m):
+            # Structure changed — full widget rebuild
+            self._miner = m
+            old_layout = self.layout()
+            if old_layout:
+                while old_layout.count():
+                    item = old_layout.takeAt(0)
+                    if item.widget():
+                        item.widget().deleteLater()
+            self._build(m)
+        else:
+            # Common path: only data changed — update labels in-place
+            self._miner = m
+            self._update_data(m)
 
 
 _STAT_CHIP_QSS = (
@@ -381,6 +518,7 @@ class DashboardPage(QWidget):
         self._cards: Dict[str, MinerCard] = {}
         self._btc_price: float = 0.0
         self._pin_status: str = ""   # "" | "online" | "warning" | "offline"
+        self._stats_pending = False   # debounce flag for batch stats update
         self._setup_ui()
 
     def set_btc_price(self, price: float):
@@ -503,6 +641,16 @@ class DashboardPage(QWidget):
             card = MinerCard(miner, main_win=self._main)
             self._cards[miner.ip] = card
             self._relayout()
+        # Batch the summary/stats update — fires once after the scan burst settles
+        self._schedule_stats()
+
+    def _schedule_stats(self):
+        if not self._stats_pending:
+            self._stats_pending = True
+            QTimer.singleShot(300, self._flush_stats)
+
+    def _flush_stats(self):
+        self._stats_pending = False
         self._update_summary()
         self._update_stats()
 

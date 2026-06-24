@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self._snoozed: Dict[str, float] = {}
         self._scan_anim_step = 0
         self._alerts_refresh_pending = False
+        self._chips_pending = False   # debounce flag for header chip updates
         self._last_scan_perf: Dict[str, object] = {}
 
         self._setup_ui()
@@ -315,6 +316,10 @@ class MainWindow(QMainWindow):
         for i, btn in enumerate(self._nav_btns):
             btn.set_active(i == index)
         self._stack.setCurrentIndex(index)
+        # Miners page (index 1) skips live updates when hidden — refresh on navigation
+        if index == 1:
+            for miner in self._miners.values():
+                self._miners_page.update_miner(miner)
 
     # ── Scanner Setup ──────────────────────────────────────────────────────
 
@@ -329,6 +334,7 @@ class MainWindow(QMainWindow):
         self._scanner.log_event.connect(self._on_log_event)
         self._scanner.scan_progress.connect(self._on_scan_progress)
         self._scanner.scan_performance.connect(self._on_scan_performance)
+        self._scanner.reboot_triggered.connect(self._on_reboot_triggered)
         self._scanner.start()
 
     def _setup_alert_scheduler(self):
@@ -411,9 +417,20 @@ class MainWindow(QMainWindow):
         self._check_thermal_runaway(miner)
         self._check_hash_instability(miner)
         self._dashboard_page.update_miner(miner)
-        self._miners_page.update_miner(miner)
+        # Only push to miners page when it's the active page
+        if self._stack.currentWidget() is self._miners_page:
+            self._miners_page.update_miner(miner)
         self._firmware_page.update_miner(miner)
         self._schedule_alerts_refresh()
+        self._schedule_chips()
+
+    def _schedule_chips(self):
+        if not self._chips_pending:
+            self._chips_pending = True
+            QTimer.singleShot(300, self._flush_chips)
+
+    def _flush_chips(self):
+        self._chips_pending = False
         self._update_chips()
 
     def _schedule_alerts_refresh(self):
@@ -501,6 +518,15 @@ class MainWindow(QMainWindow):
         if ip in self._miners:
             self._miners[ip].status = "offline"
         self._update_chips()
+
+    @pyqtSlot(str, str)
+    def _on_reboot_triggered(self, ip: str, reason: str):
+        miner = self._miners.get(ip)
+        name = miner.display_name if miner else ip
+        self._status_msg.setText(f"AUTO-REBOOT: {name} — {reason}")
+        self._show_popup(f"AUTO-REBOOT\n{name}\n{reason}", ip=ip)
+        if self._alerts_refresh_pending is not None:
+            self._alerts_page.refresh_active_alerts(list(self._miners.values()))
 
     @pyqtSlot()
     def _on_scan_started(self):
