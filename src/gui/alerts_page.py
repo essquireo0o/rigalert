@@ -339,61 +339,31 @@ class AlertsPage(QWidget):
         div.setFixedHeight(1)
         rf2.addWidget(div)
 
-        self._chk_disable_board = QCheckBox(
-            "Disable overheating board and reboot to restore hashing"
-        )
-        self._chk_disable_board.setStyleSheet("color:#eef4ff;font-weight:600;")
-        rf2.addWidget(self._chk_disable_board)
+        self._chk_board_overheat = QCheckBox("Auto-handle overheating boards")
+        self._chk_board_overheat.setStyleSheet("color:#eef4ff;font-weight:600;")
+        rf2.addWidget(self._chk_board_overheat)
 
-        board_lbl = QLabel(
-            "If a single hashboard overheats 3 scans in a row, RigAlert disables only "
-            "that board in VNish firmware settings, then reboots the miner.  The remaining "
-            "boards come back online and continue hashing at reduced capacity — keeping "
-            "revenue flowing instead of losing the whole machine.\n\n"
-            "Requires VNish firmware.  Uses the Miner Web Password set in Settings."
+        overheat_desc = QLabel(
+            "30 minutes or less: disable the overheating board and reboot\n"
+            "Over 30 minutes: reboot the miner to keep it hashing"
         )
-        board_lbl.setWordWrap(True)
-        board_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
-        rf2.addWidget(board_lbl)
-
-        div2 = QFrame()
-        div2.setFrameShape(QFrame.Shape.HLine)
-        div2.setStyleSheet("background:#2d3a50;max-height:1px;border:none;margin:4px 0;")
-        div2.setFixedHeight(1)
-        rf2.addWidget(div2)
-
-        self._chk_hourly_reboot = QCheckBox(
-            "If a board keeps overheating, reboot on a timer to keep it mining"
-        )
-        self._chk_hourly_reboot.setStyleSheet("color:#eef4ff;font-weight:600;")
-        rf2.addWidget(self._chk_hourly_reboot)
+        overheat_desc.setWordWrap(True)
+        overheat_desc.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
+        rf2.addWidget(overheat_desc)
 
         restart_interval_row = QHBoxLayout()
-        restart_interval_row.setContentsMargins(26, 0, 0, 0)
-        ri_lbl = QLabel("Restart miner after overheating for:")
+        restart_interval_row.setContentsMargins(26, 4, 0, 0)
+        ri_lbl = QLabel("Threshold:")
         ri_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
         self._restart_overheat_mins = QSpinBox()
         self._restart_overheat_mins.setRange(5, 240)
         self._restart_overheat_mins.setValue(30)
         self._restart_overheat_mins.setSuffix(" min")
         self._restart_overheat_mins.setFixedWidth(90)
-        self._restart_overheat_mins.setToolTip(
-            "Board must be above Critical Temp for this long before the restart fires"
-        )
         restart_interval_row.addWidget(ri_lbl)
         restart_interval_row.addWidget(self._restart_overheat_mins)
         restart_interval_row.addStretch()
         rf2.addLayout(restart_interval_row)
-
-        hourly_lbl = QLabel(
-            "Anything under this threshold is handled by \"Disable overheating board\" above.  "
-            "Once the timer is reached, RigAlert reboots the miner and the clock resets — "
-            "repeating every interval as long as the board stays hot.\n\n"
-            "Fires regardless of whether \"Disable overheating board\" is on or off."
-        )
-        hourly_lbl.setWordWrap(True)
-        hourly_lbl.setStyleSheet("color:#9aa8bd;font-size:12px;background:transparent;")
-        rf2.addWidget(hourly_lbl)
 
         cooldown_row = QHBoxLayout()
         cooldown_lbl = QLabel("Minimum time between reboots per miner:")
@@ -459,8 +429,7 @@ class AlertsPage(QWidget):
         # Auto-reboot
         self._chk_reboot.setChecked(getattr(cfg, "auto_reboot_enabled", False))
         self._reboot_cooldown.setValue(getattr(cfg, "auto_reboot_cooldown_minutes", 10))
-        self._chk_disable_board.setChecked(getattr(cfg, "auto_disable_board_enabled", False))
-        self._chk_hourly_reboot.setChecked(getattr(cfg, "auto_reboot_overheat_hourly", False))
+        self._chk_board_overheat.setChecked(getattr(cfg, "auto_board_overheat_enabled", False))
         self._restart_overheat_mins.setValue(getattr(cfg, "auto_reboot_overheat_minutes", 30))
 
         # Price alerts
@@ -499,10 +468,9 @@ class AlertsPage(QWidget):
         cfg.enable_popup_alerts   = self._chk_popup.isChecked()
 
         # Auto-reboot
-        cfg.auto_reboot_enabled          = self._chk_reboot.isChecked()
-        cfg.auto_reboot_cooldown_minutes = self._reboot_cooldown.value()
-        cfg.auto_disable_board_enabled   = self._chk_disable_board.isChecked()
-        cfg.auto_reboot_overheat_hourly   = self._chk_hourly_reboot.isChecked()
+        cfg.auto_reboot_enabled           = self._chk_reboot.isChecked()
+        cfg.auto_reboot_cooldown_minutes  = self._reboot_cooldown.value()
+        cfg.auto_board_overheat_enabled   = self._chk_board_overheat.isChecked()
         cfg.auto_reboot_overheat_minutes  = self._restart_overheat_mins.value()
 
         # Price alerts
