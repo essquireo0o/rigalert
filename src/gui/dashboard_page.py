@@ -121,16 +121,18 @@ class MinerCard(QFrame):
         ip_row.setSpacing(8)
         ip_row.setContentsMargins(0, 0, 0, 10)
 
-        ip_lbl = QLabel(
-            f'<a href="http://{m.ip}" '
-            f'style="color:#58a6ff;text-decoration:none;font-family:Consolas,monospace;">'
-            f'{m.ip}</a>'
+        ip_btn = QPushButton(m.ip)
+        ip_btn.setFlat(True)
+        ip_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ip_btn.setToolTip(f"Open http://{m.ip} in Chrome")
+        ip_btn.setStyleSheet(
+            "QPushButton{color:#58a6ff;font-family:Consolas,monospace;font-size:11px;"
+            "background:transparent;border:none;text-align:left;padding:0;}"
+            "QPushButton:hover{color:#79c0ff;text-decoration:underline;}"
         )
-        ip_lbl.setStyleSheet("font-size:11px;background:transparent;")
-        ip_lbl.setToolTip(f"Open {m.ip} in Chrome")
-        ip_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
-        ip_lbl.linkActivated.connect(lambda url: _launch_chrome(url, self._main_win))
-        ip_row.addWidget(ip_lbl)
+        _ip_url = f"http://{m.ip}"
+        ip_btn.clicked.connect(lambda _, u=_ip_url, mw=self._main_win: _launch_chrome(u, mw))
+        ip_row.addWidget(ip_btn)
 
         if m.firmware:
             fw_lower = m.firmware.lower()
