@@ -380,6 +380,7 @@ class DashboardPage(QWidget):
         self._main = main_win
         self._cards: Dict[str, MinerCard] = {}
         self._btc_price: float = 0.0
+        self._pin_status: str = ""   # "" | "online" | "warning" | "offline"
         self._setup_ui()
 
     def set_btc_price(self, price: float):
@@ -453,6 +454,23 @@ class DashboardPage(QWidget):
         chip_warn, self._stat_warn = _chip("WARNINGS",       "0",      "#d29922")
         chip_off,  self._stat_off  = _chip("OFFLINE",        "0",      "#f85149")
 
+        # Store refs so we can highlight the active filter chip
+        self._chip_on   = chip_on
+        self._chip_warn = chip_warn
+        self._chip_off  = chip_off
+
+        # Make status chips clickable — click pins that group to the top
+        for chip, status, color in [
+            (chip_on,   "online",  "#3fb950"),
+            (chip_warn, "warning", "#d29922"),
+            (chip_off,  "offline", "#f85149"),
+        ]:
+            chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setToolTip("Click to pin this group to the top  (click again to clear)")
+            chip.mousePressEvent = (
+                lambda e, s=status: self._toggle_pin(s)
+            )
+
         for chip in [chip_hs, chip_pw, chip_ef, chip_rev, chip_on, chip_warn, chip_off]:
             stats_row.addWidget(chip)
         stats_row.addStretch()
@@ -476,7 +494,11 @@ class DashboardPage(QWidget):
 
     def update_miner(self, miner: MinerData):
         if miner.ip in self._cards:
+            prev_status = self._cards[miner.ip]._miner.status
             self._cards[miner.ip].refresh(miner)
+            # Re-sort if a card's status changed and a filter is active
+            if self._pin_status and miner.status != prev_status:
+                self._relayout()
         else:
             card = MinerCard(miner, main_win=self._main)
             self._cards[miner.ip] = card
@@ -495,16 +517,44 @@ class DashboardPage(QWidget):
         for ip, miner in miners.items():
             self.update_miner(miner)
 
+    def _toggle_pin(self, status: str):
+        self._pin_status = "" if self._pin_status == status else status
+        self._update_chip_highlights()
+        self._relayout()
+
+    def _update_chip_highlights(self):
+        chip_map = {
+            "online":  (self._chip_on,   "#3fb950"),
+            "warning": (self._chip_warn, "#d29922"),
+            "offline": (self._chip_off,  "#f85149"),
+        }
+        for st, (chip, color) in chip_map.items():
+            active = self._pin_status == st
+            border = f"2px solid {color}" if active else "1px solid #21262d"
+            chip.setStyleSheet(
+                f"QFrame#statChip{{background:#161b22;border:{border};"
+                f"border-radius:6px;padding:4px 14px;}}"
+            )
+
     def _relayout(self):
         while self._grid.count():
             self._grid.takeAt(0)
-        # Clear old column stretches
         for c in range(self._grid.columnCount()):
             self._grid.setColumnStretch(c, 0)
         cols = max(1, self._grid_container.width() // 300)
-        for i, card in enumerate(self._cards.values()):
+
+        # Pin the selected status group to the top
+        if self._pin_status:
+            pinned = [(ip, c) for ip, c in self._cards.items()
+                      if c._miner.status == self._pin_status]
+            others = [(ip, c) for ip, c in self._cards.items()
+                      if c._miner.status != self._pin_status]
+            ordered = pinned + others
+        else:
+            ordered = list(self._cards.items())
+
+        for i, (_, card) in enumerate(ordered):
             self._grid.addWidget(card, i // cols, i % cols)
-        # Cards expand to fill each column equally
         for c in range(cols):
             self._grid.setColumnStretch(c, 1)
 
