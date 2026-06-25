@@ -26,6 +26,8 @@ ing_miner_watch_config.json
 rigalert_config.json
 rigalert_seed_config.json
 rigalert.db
+rigalert.db-shm
+rigalert.db-wal
 
 # OS
 Thumbs.db
