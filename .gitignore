@@ -24,6 +24,7 @@ generate_icon.py
 # Config files with credentials (now colocated with the app for portability)
 ing_miner_watch_config.json
 rigalert_config.json
+rigalert_seed_config.json
 rigalert.db
 
 # OS

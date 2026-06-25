@@ -93,6 +93,7 @@ class AppConfig:
 
     @classmethod
     def load(cls, path: str = _CFG_PATH) -> "AppConfig":
+        _seed_config_if_needed(path)
         if os.path.exists(path):
             try:
                 with open(path) as f:
@@ -105,3 +106,20 @@ class AppConfig:
             except Exception:
                 pass
         return cls()
+
+
+def _seed_config_if_needed(dest: str):
+    """Pre-configured builds embed a seed config in the EXE.
+    On first launch (no local config yet) copy it out so credentials are ready."""
+    if os.path.exists(dest):
+        return
+    import sys, shutil
+    meipass = getattr(sys, "_MEIPASS", None)
+    if not meipass:
+        return
+    seed = os.path.join(meipass, "rigalert_seed_config.json")
+    if os.path.exists(seed):
+        try:
+            shutil.copy2(seed, dest)
+        except Exception:
+            pass
