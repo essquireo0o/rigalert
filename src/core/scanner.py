@@ -201,6 +201,7 @@ class MinerScanner(QThread):
         self._last_signatures: Dict[str, tuple] = {}
         self._last_db_write: Dict[str, float] = {}   # ip → epoch of last save_reading call
         self._last_reboot: Dict[str, float] = {}    # ip → epoch of last auto-reboot
+        self._last_board_disable: Dict[str, float] = {}  # ip → epoch of last board-disable action (separate from reboot cooldown)
         self._board_strikes: Dict[str, Dict[int, int]] = {}     # ip → chain_idx → consecutive overheat count
         self._board_disabled: Dict[str, set] = {}               # ip → set of 0-based chain indices disabled by us
         self._board_overheat_since: Dict[str, Dict[int, float]] = {}  # ip → chain_idx → epoch when overheat began
@@ -655,10 +656,10 @@ class MinerScanner(QThread):
                         f"Board {chain_id} overheat {temp:.0f}°C — strike {strikes}/{required_strikes}")
 
                     if strikes >= required_strikes:
-                        if time.time() - self._last_reboot.get(ip, 0) >= cooldown:
+                        if time.time() - self._last_board_disable.get(ip, 0) >= cooldown:
                             self._board_strikes[ip][i] = 0
                             self._board_disabled[ip].add(i)
-                            self._last_reboot[ip] = time.time()
+                            self._last_board_disable[ip] = time.time()
                             self._board_overheat_since[ip].pop(i, None)
                             msg = (f"AUTO-DISABLE board {chain_id}: {temp:.0f}°C for "
                                    f"{required_strikes} scans — disabling + rebooting")

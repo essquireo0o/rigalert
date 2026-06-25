@@ -595,7 +595,7 @@ class AlertsPage(QWidget):
         cfg = self._main.get_config()
 
         if not cfg.enable_email_alerts:
-            self._daily_result.setText("✗ Email alerts disabled — tick the checkbox above and save")
+            self._daily_result.setText("✗ Email alerts disabled — tick 'Send summary email via Gmail' and save")
             self._daily_result.setStyleSheet("color:#ff6b6b;font-size:12px;background:transparent;")
             return
         if not cfg.gmail_user or not cfg.gmail_app_password:

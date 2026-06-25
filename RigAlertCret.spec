@@ -3,9 +3,6 @@
 import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-_runtime_cache = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
-                              'RigAlertCret', 'runtime')
-
 _tzdata_datas = collect_data_files('tzdata')
 _tzdata_hidden = collect_submodules('tzdata')
 
@@ -47,5 +44,5 @@ exe = EXE(
     entitlements_file=None,
     icon=['rigalert.ico'],
     upx_exclude=[],
-    runtime_tmpdir=_runtime_cache,
+    runtime_tmpdir=None,
 )

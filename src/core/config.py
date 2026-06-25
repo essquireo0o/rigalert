@@ -126,16 +126,35 @@ class AppConfig:
 
 def _seed_config_if_needed(dest: str):
     """Pre-configured builds embed a seed config in the EXE.
-    On first launch (no local config yet) copy it out so credentials are ready."""
-    if os.path.exists(dest):
-        return
-    import sys, shutil
+    First launch: copy seed as the full config.
+    Subsequent launches: always sync credentials from seed so they stay current."""
+    import sys, shutil, json as _json
     meipass = getattr(sys, "_MEIPASS", None)
     if not meipass:
         return
     seed = os.path.join(meipass, "rigalert_seed_config.json")
-    if os.path.exists(seed):
+    if not os.path.exists(seed):
+        return
+    if not os.path.exists(dest):
         try:
             shutil.copy2(seed, dest)
         except Exception:
             pass
+        return
+    # Config already exists — sync credential fields from seed so they stay current
+    _SEED_FIELDS = {"gmail_user", "gmail_app_password", "alert_to_email"}
+    try:
+        with open(seed) as f:
+            seed_data = _json.load(f)
+        with open(dest) as f:
+            local_data = _json.load(f)
+        updated = False
+        for key in _SEED_FIELDS:
+            if key in seed_data and local_data.get(key) != seed_data[key]:
+                local_data[key] = seed_data[key]
+                updated = True
+        if updated:
+            with open(dest, "w") as f:
+                _json.dump(local_data, f, indent=2)
+    except Exception:
+        pass
