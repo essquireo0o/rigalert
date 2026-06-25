@@ -72,9 +72,19 @@ def main():
     from src.gui.main_window import MainWindow
     from src.core.config import AppConfig
     from src.core.licensing import validate_license
+    from src.core.telemetry import ping as telemetry_ping
 
     cfg = AppConfig.load()
+
+    # Persist install_id if it was just generated
+    cfg.save()
+
     license_ok, license_msg = validate_license(cfg)
+
+    # Telemetry ping — non-blocking, daemon thread, silently fails if offline
+    miner_count = len(getattr(cfg, "saved_miners", []))
+    telemetry_ping(cfg, license_ok=license_ok, miner_count=miner_count)
+
     if not license_ok:
         QMessageBox.critical(
             None, "RigAlert — License Required",

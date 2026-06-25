@@ -76,6 +76,13 @@ class AppConfig:
     stripe_secret_key: str = ""    # sk_live_... / sk_test_... — never committed to git
     stripe_publishable_key: str = ""  # pk_live_... / pk_test_...
 
+    # Telemetry — anonymous usage ping for the operator dashboard
+    # Tracks installs, licensed vs unlicensed, miner counts. Off by default.
+    telemetry_enabled: bool = False
+    telemetry_endpoint: str = ""   # Supabase REST URL or any HTTPS POST endpoint
+    telemetry_api_key: str = ""    # Supabase anon key (safe to embed — row-level security handles the rest)
+    install_id: str = ""           # UUID auto-generated on first launch; ties heartbeats together
+
     # Economics
     electricity_cost_kwh: float = 0.07   # USD per kWh
 
@@ -92,6 +99,9 @@ class AppConfig:
             self.saved_miners = []
         if self.altcoin_alerts is None:
             self.altcoin_alerts = []
+        if not self.install_id:
+            import uuid
+            self.install_id = str(uuid.uuid4())
 
     def save(self, path: str = _CFG_PATH):
         with open(path, "w") as f:
