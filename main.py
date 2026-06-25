@@ -70,6 +70,18 @@ def main():
     start_minimized = "--minimized" in sys.argv
 
     from src.gui.main_window import MainWindow
+    from src.core.config import AppConfig
+    from src.core.licensing import validate_license
+
+    cfg = AppConfig.load()
+    license_ok, license_msg = validate_license(cfg)
+    if not license_ok:
+        QMessageBox.critical(
+            None, "RigAlert — License Required",
+            f"{license_msg}\n\nContact support@ingmining.com to obtain a license.",
+        )
+        sys.exit(1)
+
     window = MainWindow(start_minimized=start_minimized)
     if not start_minimized:
         window.show()

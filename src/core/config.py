@@ -70,6 +70,12 @@ class AppConfig:
     auto_board_overheat_enabled: bool = False  # disable board if < threshold, reboot if >= threshold
     auto_reboot_overheat_minutes: int = 30     # minutes of continuous overheat before switching to reboot
 
+    # Licensing / monetization (Stripe) — disabled by default, no-op until activated
+    license_enabled: bool = False
+    license_key: str = ""          # customer-facing license key (checked against Stripe)
+    stripe_secret_key: str = ""    # sk_live_... / sk_test_... — never committed to git
+    stripe_publishable_key: str = ""  # pk_live_... / pk_test_...
+
     # Economics
     electricity_cost_kwh: float = 0.07   # USD per kWh
 
