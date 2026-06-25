@@ -92,17 +92,39 @@ class CGMinerAPI:
 
         # Single connection for all 5 commands — CGMiner pipe syntax
         pipe = self._send("summary+devs+pools+stats+version")
-        if pipe and "SUMMARY" in pipe and pipe["SUMMARY"]:
-            out["summary"] = pipe["SUMMARY"][0]
-            if pipe.get("DEVS"):
-                out["devs"] = pipe["DEVS"]
-            if pipe.get("POOLS"):
-                out["pools"] = pipe["POOLS"]
-            if pipe.get("STATS"):
-                out["stats"] = pipe["STATS"]
-            if pipe.get("VERSION") and pipe["VERSION"]:
-                out["version"] = pipe["VERSION"][0]
-            return out
+        if pipe:
+            # Standard format: uppercase top-level keys (BMMiner / stock CGMiner)
+            if "SUMMARY" in pipe and pipe["SUMMARY"]:
+                out["summary"] = pipe["SUMMARY"][0]
+                if pipe.get("DEVS"):
+                    out["devs"] = pipe["DEVS"]
+                if pipe.get("POOLS"):
+                    out["pools"] = pipe["POOLS"]
+                if pipe.get("STATS"):
+                    out["stats"] = pipe["STATS"]
+                if pipe.get("VERSION") and pipe["VERSION"]:
+                    out["version"] = pipe["VERSION"][0]
+                return out
+
+            # VNish pipe format: lowercase outer keys, each wrapping a mini-response
+            # {"summary": [{"SUMMARY": [{data}], "STATUS": [...]}], "devs": [...], ...}
+            if "summary" in pipe:
+                for low, up, singular in [
+                    ("summary", "SUMMARY", True),
+                    ("devs",    "DEVS",    False),
+                    ("pools",   "POOLS",   False),
+                    ("stats",   "STATS",   False),
+                    ("version", "VERSION", True),
+                ]:
+                    mini = pipe.get(low, [])
+                    if isinstance(mini, list) and mini:
+                        inner = mini[0]
+                        if isinstance(inner, dict):
+                            val = inner.get(up)
+                            if val:
+                                out[low] = val[0] if singular else val
+                if "summary" in out:
+                    return out
 
         # Fallback: sequential individual commands (older/non-standard firmware)
         s = self._send("summary")
