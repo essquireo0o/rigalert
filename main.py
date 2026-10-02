@@ -57,7 +57,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("RigAlert")
     app.setApplicationDisplayName("RigAlert™ by ING Mining")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("2.3.0")
     app.setOrganizationName("ING Mining")
 
     ico = pathlib.Path(__file__).parent / "rigalert.ico"

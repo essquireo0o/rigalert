@@ -2,9 +2,6 @@
 import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-_runtime_cache = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
-                              'RigAlert', 'runtime')
-
 # Bundle IANA timezone database so ZoneInfo works on any Windows machine
 _tzdata_datas = collect_data_files('tzdata')
 _tzdata_hidden = collect_submodules('tzdata')
@@ -42,5 +39,7 @@ exe = EXE(
     entitlements_file=None,
     icon=['rigalert.ico'],
     upx_exclude=[],
-    runtime_tmpdir=_runtime_cache,  # reuse extracted files → fast restart after first launch
+    # None = unpack under the RUNNING user's %TEMP%. A path computed here is evaluated on the
+    # build machine and baked in, so it pointed every other PC at the builder's profile.
+    runtime_tmpdir=None,
 )

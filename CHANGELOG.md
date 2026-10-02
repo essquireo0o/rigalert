@@ -4,6 +4,19 @@ All notable changes to RigAlert™ are documented here.
 
 ---
 
+## [2.3.0] — 2026-10-02
+
+First public one-file build since 1.0.0. Download `RigAlert.exe` and run it; there is no installer.
+
+### Fixed
+- The standard build (`RigAlert.spec`) baked the build machine's `%LOCALAPPDATA%` path into the EXE as its unpack folder, so it could not start on any other PC. It now unpacks under the running user's `%TEMP%`.
+- Version shown in the sidebar, the application metadata and the MSI definition now agree (2.3).
+
+### Notes
+- The public build carries no seed config: Gmail, Telegram, licence and telemetry settings all start blank. Only `RigAlertCret.spec` bundles a seed config, and that build is not published.
+
+---
+
 ## [Unreleased]
 
 ### Added

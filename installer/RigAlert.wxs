@@ -4,7 +4,7 @@
   <Product Id="*"
            Name="RigAlert"
            Language="1033"
-           Version="2.1.0.0"
+           Version="2.3.0.0"
            Manufacturer="ING Mining"
            UpgradeCode="{BCFD1762-F821-40F1-88B7-55583E9C0084}">
 

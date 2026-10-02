@@ -63,7 +63,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-_APP_VERSION = "2.2"
+_APP_VERSION = "2.3"
 
 
 def ping(cfg, license_ok: bool, miner_count: int = 0) -> None:
