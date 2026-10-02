@@ -9,7 +9,7 @@ All notable changes to RigAlert™ are documented here.
 First public one-file build since 1.0.0. Download `RigAlert.exe` and run it; there is no installer.
 
 ### Fixed
-- The standard build (`RigAlert.spec`) baked the build machine's `%LOCALAPPDATA%` path into the EXE as its unpack folder, so it could not start on any other PC. It now unpacks under the running user's `%TEMP%`.
+- The standard build (`RigAlert.spec`) baked the build machine's `%LOCALAPPDATA%` path into the EXE as its unpack folder, which pointed every other PC at a folder that does not exist there. It now unpacks under the running user's `%TEMP%`.
 - Version shown in the sidebar, the application metadata and the MSI definition now agree (2.3).
 
 ### Notes
